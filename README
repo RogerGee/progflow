@@ -1,0 +1,13 @@
+progflow
+--------------------------------------------------------------------------------
+This project is a Web application that provides a program flow simulator. The
+application is designed to be run entirely in the browser. The simulator uses a
+subset of the C++ language as an interface for flow diagrams produced using the
+software.
+
+installation
+--------------------------------------------------------------------------------
+To install, recursively copy everything under src/ to a Web server. Users may
+then pull down the software by visiting your Web site. The Web browser should
+cache the application so that only newer versions are pulled down when visiting
+the site.

@@ -1,0 +1,56 @@
+/* main.css */
+
+html, body {
+    overflow: hidden;
+    height: 100%;
+    padding: 0px;
+    margin: 0px;
+}
+
+.horizontile-box {
+    height: 67%;
+}
+
+.control-panel {
+    float: left;
+    border-right: 2px solid black;
+    width: 25%;
+    height: 100%;
+    margin: 0 0.25%;
+}
+
+.canvas-view {
+    margin: 0 0.25%;
+    overflow: auto;
+    height: 100%;
+}
+
+/* used to get browser to fit middle-positioned div */
+.dummy-view {
+    float: right;
+    width: 0;
+    height: 100%;
+}
+
+.terminal-view {
+    border-top: 2px solid black;
+    height: 33%;
+}
+
+.control-panel-button-a {
+    font-size: 12pt;
+    font-family: monospace;
+
+}
+
+.control-panel-button-b {
+
+}
+
+.control-panel-text-entry {
+    font-family: monospace;
+}
+
+.control-panel-label {
+
+}

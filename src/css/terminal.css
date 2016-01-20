@@ -1,0 +1,32 @@
+/* terminal.css */
+
+.terminal {
+    font-family: Ubuntu Mono, Menlo, Consolas, monospace;
+    background-color: #111;
+    color: #FFF;
+    font-size: 12px;
+    height: 100%;
+}
+
+.terminal-cursor {
+    background-color: #FFF;
+    color: #000;
+    white-space: pre;
+}
+
+.terminal-cursor-nofocus {
+    background-color: transparent;
+    opacity: 0.7;
+    outline: #FFF solid;
+    outline-width: 1px;
+}
+
+.terminal-line {
+    background-color: transparent;
+    white-space: nowrap;
+}
+
+.terminal-input {
+    color: red;
+    font-weight: bold;
+}
