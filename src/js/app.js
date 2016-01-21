@@ -2,6 +2,7 @@
 
 // globals
 var terminal;
+var context;
 
 // constants
 const VERSION = "0.0";
@@ -12,6 +13,8 @@ const AGENTINFO = navigator.userAgent;
 function initPage() {
     var controlPanel = document.getElementById('div-control-panel');
     var terminalView = document.getElementById('div-terminal-view');
+    var canvasView = document.getElementById('div-canvas-view');
+
     controlPanel.addBreak = function() {
         //this.appendChild(document.createElement("br"));
         this.appendChild(document.createElement("hr"));
@@ -78,6 +81,16 @@ function initPage() {
     terminal = new Terminal(terminalView);
     terminal.addLine(PROGNAME + " " + VERSION);
     terminal.addLine(AGENTINFO);
+
+    // create canvas and render context
+    var canvas = document.createElement("canvas");
+    canvas.appendChild(document.createTextNode("Browser does not support HTML5 Canvas"));
+    canvas.setAttribute("id","canvas-main");
+    canvasView.appendChild(canvas);
+    canvas.width = canvasView.clientWidth;
+    canvas.height = canvasView.clientHeight;
+    context = new DrawingContext(canvas);
+    context.drawScreen();
 }
 
 // resizePage() - handle window resize event
@@ -89,6 +102,13 @@ function resizePage() {
         var w = controlPanel.offsetWidth-nodes[i].previousSibling.offsetWidth-12;
         nodes[i].style.width = w + "px";
     }
+
+    // resize canvas
+    var canvasView = document.getElementById('div-canvas-view');
+    var canvas = document.getElementById('canvas-main');
+    canvas.width = canvasView.clientWidth;
+    canvas.height = canvasView.clientHeight;
+    context.drawScreen();
 }
 
 // setup event handlers
