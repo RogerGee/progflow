@@ -19,10 +19,14 @@ html, body {
     margin: 0 0.25%;
 }
 
+/* the canvas view must scroll so that we can resize the canvas to fit long
+   visual elements */
 .canvas-view {
     margin: 0 0.25%;
-    overflow: auto;
+    overflow-x: hidden;
+    overflow-y: auto;
     height: 100%;
+    display: block;
 }
 
 /* used to get browser to fit middle-positioned div */
@@ -44,13 +48,14 @@ html, body {
 }
 
 .control-panel-button-b {
-
+    font-size: 12pt;
 }
 
 .control-panel-text-entry {
     font-family: monospace;
+    font-size: 12pt;
 }
 
 .control-panel-label {
-
+    font-size: 12pt;
 }

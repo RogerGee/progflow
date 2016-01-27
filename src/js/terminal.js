@@ -47,7 +47,7 @@ function Terminal(parentNode) {
 
     // create cursor element
     var cursor = document.createElement("span");
-    var cursorText = document.createTextNode(' '); // single character
+    var cursorText = document.createTextNode(' '); // single space character
     cursor.className = 'terminal-cursor';
     cursor.appendChild(cursorText);
 
@@ -146,7 +146,7 @@ function Terminal(parentNode) {
                 ispanBefore.data = before;
                 ispanAfter.data = after.substr(1);
                 itext = before + after;
-                cursorText.data = after[0];
+                cursorText.data = ipos >= itext.length ? ' ' : after[0];
             }
         }
         else if (e.keyCode == KEYCODES.HOME) {
@@ -192,12 +192,12 @@ function Terminal(parentNode) {
         imode = true;
         imodeCb = callback;
 
-        // rest the state of the input line
+        // reset the state of the input line
         itext = "";
         ipos = 0;
         ispanBefore.data = "";
         ispanAfter.data = "";
-        cursorText = " ";
+        cursorText.data = " ";
 
         // add the input line span to the terminal screen
         termDiv.appendChild(ispan);

@@ -59,6 +59,7 @@ function initPage() {
     controlPanel.addButtonB("open in new tab");
     controlPanel.addButtonB("close project");
     controlPanel.addBreak();
+    controlPanel.addButtonA("assign");
     controlPanel.addButtonA("in");
     controlPanel.addButtonA("out");
     controlPanel.addButtonA("if");
@@ -66,16 +67,12 @@ function initPage() {
     controlPanel.addButtonA("for");
     controlPanel.addButtonA("call");
     controlPanel.addButtonA("proc");
-    controlPanel.addButtonA("+");
-    controlPanel.addButtonA("-");
-    controlPanel.addButtonA("*");
-    controlPanel.addButtonA("÷");
-    controlPanel.addButtonA("mod");
     controlPanel.addBreak();
-    controlPanel.addButtonB("reset");
     controlPanel.addButtonB("C++");
     controlPanel.addButtonB("exec");
     controlPanel.addButtonB("trace");
+    controlPanel.addButtonB("reset");
+    controlPanel.addBreak();
 
     // create terminal content
     terminal = new Terminal(terminalView);
@@ -87,10 +84,7 @@ function initPage() {
     canvas.appendChild(document.createTextNode("Browser does not support HTML5 Canvas"));
     canvas.setAttribute("id","canvas-main");
     canvasView.appendChild(canvas);
-    canvas.width = canvasView.clientWidth;
-    canvas.height = canvasView.clientHeight;
-    context = new DrawingContext(canvas);
-    context.drawScreen();
+    context = new DrawingContext(canvas,canvasView);
 }
 
 // resizePage() - handle window resize event
@@ -104,11 +98,7 @@ function resizePage() {
     }
 
     // resize canvas
-    var canvasView = document.getElementById('div-canvas-view');
-    var canvas = document.getElementById('canvas-main');
-    canvas.width = canvasView.clientWidth;
-    canvas.height = canvasView.clientHeight;
-    context.drawScreen();
+    context.resizeCanvas();
 }
 
 // setup event handlers
