@@ -13,13 +13,13 @@ const ONE_THIRD = 0.3333333333333333333333333;
 const ARROW_HEAD_ANGLE = 0.37887902; // angle of arrow head barbs from shaft
 const ARROW_HEAD_LENGTH = 0.025; // length of arrow head
 const ARROW_SHAFT_WIDTH = 0.001; // width of arrow shaft
+const DEFAULT_FONT = "monospace";
 
-// DrawingContext - handles top-level drawing operations; any object that
-// implements the drawable interface
+// DrawingContext - handles top-level drawing operations
 function DrawingContext(canvas,canvasView) {
     var ctx = canvas.getContext("2d"); // HTML5 Canvas context
-    var drawables = []; // list of objects to be rendered
     var expand = 0; // number of elements by which we have expanded the canvas
+    var topBlock = new FlowBlockVisual("program"); // block for all program elements
 
     ////////////////////////////////////////////////////////////////////////////
     // Functions
@@ -67,15 +67,9 @@ function DrawingContext(canvas,canvasView) {
         ctx.translate(hw,hh);
         ctx.scale(hw*(1-ctx.paddingX),hh*(1-ctx.paddingY));
 
-        // render all of the drawable objects in our possession
-        for (obj of drawables) {
-            obj.draw(ctx);
-        }
-    }
-
-    // registerDrawable() - add a drawable object to the context
-    function registerDrawable(obj) {
-        drawables.push(obj);
+        // render all of the drawable objects in our possession which fall under
+        // the top-level block
+        topBlock.draw(ctx);
     }
 
     // drawPolygon() - draws a series of connected line segments to form a
@@ -151,22 +145,46 @@ function DrawingContext(canvas,canvasView) {
         ctx.restore(); // return to original coordinate system
     }
 
+    function drawText(txt,x,y,maxWidth,fontHeight,center=false) {
+        var hw = canvas.width / 2;
+        var hh = canvas.height / 2;
+
+        if (center) {
+            ctx.textAlign = "center";
+        }
+        else {
+            ctx.textAlign = "start";
+        }
+        ctx.textBaseline = "middle"; // thank God for this
+
+        ctx.save();
+        ctx.scale(1/hw,1/hh);
+        x *= hw; y *= hh;
+        maxWidth *= hw;
+
+        var fontSz = fontHeight * hh;
+        ctx.font = fontSz + "px " + DEFAULT_FONT;
+        ctx.fillText(txt,x,y,maxWidth);
+
+        ctx.restore();
+    }
+
     ////////////////////////////////////////////////////////////////////////////
-    // Public interface functions
+    // Public interface
     ////////////////////////////////////////////////////////////////////////////
 
     this.resizeCanvas = resizeCanvas;
     this.drawScreen = drawScreen;
-    this.registerDrawable = registerDrawable;
     ctx.drawPolygon = drawPolygon;
     ctx.drawArrow = drawArrow;
+    ctx.drawText = drawText;
 
     ////////////////////////////////////////////////////////////////////////////
     // Initialization
     ////////////////////////////////////////////////////////////////////////////
 
-    // create top level block and resize canvas
-    registerDrawable(new FlowBlockVisual("top-level")); // block to hold procedures
+    topBlock.addChild(new FlowProcedureVisual("assign x")); //test
+    topBlock.addChild(new FlowBlockVisual("function")); //test
     resizeCanvas();
 }
 
@@ -184,6 +202,7 @@ function FlowBlockVisual(label) {
         // draw the box representing the block
         ctx.save();
         ctx.drawPolygon([-1,-1,1,-1,1,1,-1,1]);
+        ctx.save();
         ctx.setTransform(1,0,0,1,0,0);
         ctx.setLineDash([2,5]);
         if (selected) {
@@ -195,19 +214,84 @@ function FlowBlockVisual(label) {
         ctx.lineWidth = 1.0;
         ctx.stroke();
         ctx.restore();
+        if (label != "") {
+            // draw label in upper-left corner; we must position the text at
+            // least half the font height down from the top
+            ctx.drawText(label,-0.99,-0.90,ONE_THIRD,0.2);
+        }
 
         // render our children inside our rectangle
-        ctx.translate(0,-1+ELEMENT_DIMENSION); // dim-padding+padding => 1/3
-        ctx.scale(ELEMENT_DIMENSION-ctx.paddingX,ELEMENT_DIMENSION-ctx.paddingY);
+        var ty = -1+ELEMENT_DIMENSION+ctx.paddingY;
+        var sx = ELEMENT_DIMENSION-ctx.paddingX;
+        var sy = ELEMENT_DIMENSION-ctx.paddingY;
+        for (var obj of children) {
+            ctx.save();
+            ctx.translate(0,ty);
+            ctx.scale(sx,sy);
+            obj.draw(ctx);
+            ctx.restore();
 
+            // advance to next vertical position
+            ty += ELEMENT_DIMENSION + ctx.paddingY;
+        }
+
+        ctx.restore();
     }
 
+    // toggle() - toggle selection status of element
+    function toggle() {
+        selected = !selected;
+    }
+
+    function addChild(child) {
+        children.push(child);
+    }
+
+    ////////////////////////////////////////////////////////////////////////////
+    // Public interface
+    ////////////////////////////////////////////////////////////////////////////
+
+    this.draw = draw;
+    this.toggle = toggle;
+    this.addChild = addChild;
+}
+
+// FlowProcedureVisual - represents a visual element representing a procedural
+// operation in the program
+function FlowProcedureVisual(label) {
+    var selected = false;
+
+    ////////////////////////////////////////////////////////////////////////////
+    // Functions
+    ////////////////////////////////////////////////////////////////////////////
+
+    // draw() - main drawing operation
+    function draw(ctx) {
+        ctx.drawPolygon([-1,-1,1,-1,1,1,-1,1]);
+        ctx.save();
+        ctx.setTransform(1,0,0,1,0,0);
+        if (selected) {
+            context.fillStyle = SELECT_COLOR;
+            context.globalAlpha = SELECT_ALPHA;
+            context.fill();
+            context.globalAlpha = 1.0;
+        }
+        ctx.lineWidth = 1.0;
+        ctx.stroke();
+        ctx.restore();
+        if (label != "") {
+            // draw label in center
+            ctx.drawText(label,0,0,1.8,0.5,true);
+        }
+    }
+
+    // toggle() - toggle select status of object
     function toggle() {
         selected = !selected;
     }
 
     ////////////////////////////////////////////////////////////////////////////
-    // Public interface functions
+    // Public interface
     ////////////////////////////////////////////////////////////////////////////
 
     this.draw = draw;
