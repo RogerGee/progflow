@@ -1,15 +1,9 @@
 // drawing.js - progflow
 
-/* Note about drawing:
-    When we draw, we draw in the coordinate system bounded by x:[-1,1] and
-    y:[-1,1].
-*/
-
 const SELECT_COLOR = "#0000ff"; // color of selection background
 const SELECT_ALPHA = 0.15; // percent of alpha component for selected drawables
 const VISUAL_PADDING = 0.05; // how much padding in coordinates
-const ELEMENT_DIMENSION = 0.2; // scale factor for sub-elements
-const ONE_THIRD = 0.3333333333333333333333333;
+const ONE_THIRD = 0.3333333333333333333333333; // we use this a lot
 const ARROW_HEAD_ANGLE = 0.37887902; // angle of arrow head barbs from shaft
 const ARROW_HEAD_LENGTH = 0.025; // length of arrow head
 const ARROW_SHAFT_WIDTH = 0.001; // width of arrow shaft
@@ -18,8 +12,8 @@ const DEFAULT_FONT = "monospace";
 // DrawingContext - handles top-level drawing operations
 function DrawingContext(canvas,canvasView) {
     var ctx = canvas.getContext("2d"); // HTML5 Canvas context
-    var expand = 0; // number of elements by which we have expanded the canvas
-    var topBlock = new FlowBlockVisual("program"); // block for all program elements
+    // block for all program elements
+    var topBlock = new FlowBlockVisual("program",resizeCanvas);
 
     ////////////////////////////////////////////////////////////////////////////
     // Functions
@@ -28,23 +22,19 @@ function DrawingContext(canvas,canvasView) {
     // resizeCanvas() - this sizes the canvas so that it fits into the space provided
     // for it (i.e. the canvas view)
     function resizeCanvas() {
+    	var depth = topBlock.getDepth();
+    
         // use the canvas view's dimensions as a starting point; factor out any
         // initial scroll height from the view
         canvas.width = canvasView.clientWidth;
-        canvas.height = canvasView.clientHeight;
+        canvas.height = canvasView.clientHeight/2 * depth;
         canvas.height -= canvasView.scrollHeight - canvas.clientHeight;
 
-        // expand the height of the canvas if we have specified some expand height
-        var amt = expand * ELEMENT_DIMENSION;
-        if (amt > 2) {
-            canvas.height += canvas.height * amt;
-        }
-
         // compute padding amounts according to the aspect ratio of the canvas
-        // and assign the results to the canvas context for later lookup
+        // view and assign the results to the canvas context for later lookup
         var px, py;
         px = py = VISUAL_PADDING;
-        ctx.aspectRatio = canvas.height / canvas.width;
+        ctx.aspectRatio = canvasView.clientHeight / canvasView.clientWidth;
         px *= ctx.aspectRatio;
         ctx.paddingX = px;
         ctx.paddingY = py;
@@ -60,16 +50,20 @@ function DrawingContext(canvas,canvasView) {
         ctx.fillRect(0,0,canvas.width,canvas.height);
         ctx.fillStyle = "#000000";
 
-        // set up a coordinate system such that the ranges x:[-1,1] and y:[-1,1]
-        // map to the entire surface of the canvas
+        // set up a coordinate system such that the ranges x:[-1,1] and y:[-1,x-1]
+        // map to the entire surface of the canvas where x is the depth
+        var depth = topBlock.getDepth();
         var hw = canvas.width / 2, hh = canvas.height / 2;
         ctx.setTransform(1,0,0,1,0,0);
-        ctx.translate(hw,hh);
-        ctx.scale(hw*(1-ctx.paddingX),hh*(1-ctx.paddingY));
+        ctx.translate(hw,hh); // translate to center of canvas
+        ctx.scale(canvas.width/(2+VISUAL_PADDING),canvas.height/(depth+VISUAL_PADDING));
+        ctx.translate(0,-depth/2+1); // adjust y such that there is one unit up
 
         // render all of the drawable objects in our possession which fall under
         // the top-level block
         topBlock.draw(ctx);
+        
+        drawArrow([-1,-1],[1,1]);
     }
 
     // drawPolygon() - draws a series of connected line segments to form a
@@ -85,13 +79,21 @@ function DrawingContext(canvas,canvasView) {
 
     // drawArrow() - renders a simple arrow graphic with the arrow head at the
     // 'end' position
-    function drawArrow(start,end,fill=true) {
+    function drawArrow(start,end,fill) {
+    	if (fill === undefined) {
+    		fill = true;
+    	}
+
         var v = {}, m, d, a, b;
         var head = [], headLength;
-        var hw = canvas.width / 2;
-        var hh = canvas.height / 2;
+        var sx = canvas.width / 2;
+        var sy = canvas.height / topBlock.getDepth();
 
-        function makeVector(dir,len=1) {
+        function makeVector(dir,len) {
+        	if (len === undefined) {
+        		len = 1;
+        	}
+        
             var vector = {};
             vector.x = Math.cos(dir) * len;
             vector.y = Math.sin(dir) * len;
@@ -102,10 +104,10 @@ function DrawingContext(canvas,canvasView) {
         // the aspect ratio by making each unit as close as possible to a pixel
         // so that the fractional parts of each unit don't distort the image
         ctx.save();
-        headLength = ARROW_HEAD_LENGTH * hw;
-        ctx.scale(1/hw,1/hh);
-        start[0] *= hw; end[0] *= hw;
-        start[1] *= hh; end[1] *= hh;
+        headLength = ARROW_HEAD_LENGTH * sx;
+        ctx.scale(1/sx,1/sy);
+        start[0] *= sx; end[0] *= sx;
+        start[1] *= sy; end[1] *= sy;
 
         // find arrow vector and normalize it to the length of the arrow head
         v.x = start[0] - end[0];
@@ -128,10 +130,12 @@ function DrawingContext(canvas,canvasView) {
         drawPolygon(head);
         ctx.save();
         ctx.setTransform(1,0,0,1,0,0);
-        ctx.lineWidth = 1.0;
         if (fill)
             ctx.fill();
-        ctx.stroke();
+        else {
+        	ctx.lineWidth = 1.0;
+        	ctx.stroke();
+        }
         ctx.restore();
 
         // draw the line
@@ -145,9 +149,16 @@ function DrawingContext(canvas,canvasView) {
         ctx.restore(); // return to original coordinate system
     }
 
-    function drawText(txt,x,y,maxWidth,fontHeight,center=false) {
-        var hw = canvas.width / 2;
-        var hh = canvas.height / 2;
+	// drawText() - draws text within max width at the location x,y; y is the
+	// center of the line of text; if center is true then the text is centered
+	// around x,y
+    function drawText(txt,x,y,maxWidth,fontHeight,center) {
+    	if (center === undefined) {
+    		center = false;
+    	}
+    
+        var sx = canvas.width / 2;
+        var sy = canvas.height / topBlock.getDepth();
 
         if (center) {
             ctx.textAlign = "center";
@@ -158,11 +169,11 @@ function DrawingContext(canvas,canvasView) {
         ctx.textBaseline = "middle"; // thank God for this
 
         ctx.save();
-        ctx.scale(1/hw,1/hh);
-        x *= hw; y *= hh;
-        maxWidth *= hw;
+        ctx.scale(1/sx,1/sy);
+        x *= sx; y *= sy;
+        maxWidth *= sx;
 
-        var fontSz = fontHeight * hh;
+        var fontSz = fontHeight * sy;
         ctx.font = fontSz + "px " + DEFAULT_FONT;
         ctx.fillText(txt,x,y,maxWidth);
 
@@ -183,16 +194,25 @@ function DrawingContext(canvas,canvasView) {
     // Initialization
     ////////////////////////////////////////////////////////////////////////////
 
-    topBlock.addChild(new FlowProcedureVisual("assign x")); //test
-    topBlock.addChild(new FlowBlockVisual("function")); //test
+    for (var i = 0;i < 20;++i)
+    	topBlock.addChild(new FlowOperationVisual("assign "+(i+1))); //test
+    
     resizeCanvas();
 }
 
+/* Visuals - 
+
+	Visuals represent the set of rendered elements used to compose a program
+	flow diagram. Each object takes a label and a function called 'adjustDepth'
+	which should be called when the depth of an element changes.
+*/
+
 // FlowBlockVisual - represents the visual component of a block of program flow
 // diagram elements rendered on the screen
-function FlowBlockVisual(label) {
+function FlowBlockVisual(label,adjustDepth) {
     var children = []; // list of child drawables
-    var selected = false;
+    var selected = false; // selected flag
+    var maxy = 1.0; // max y-coordinate for our coordinate system
 
     ////////////////////////////////////////////////////////////////////////////
     // Functions
@@ -201,7 +221,7 @@ function FlowBlockVisual(label) {
     function draw(ctx) {
         // draw the box representing the block
         ctx.save();
-        ctx.drawPolygon([-1,-1,1,-1,1,1,-1,1]);
+        ctx.drawPolygon([-1,-1,1,-1,1,maxy,-1,maxy]);
         ctx.save();
         ctx.setTransform(1,0,0,1,0,0);
         ctx.setLineDash([2,5]);
@@ -217,25 +237,43 @@ function FlowBlockVisual(label) {
         if (label != "") {
             // draw label in upper-left corner; we must position the text at
             // least half the font height down from the top
-            ctx.drawText(label,-0.99,-0.90,ONE_THIRD,0.2);
+            ctx.drawText(label,-0.99,-0.925,ONE_THIRD,0.15);
         }
 
         // render our children inside our rectangle
-        var ty = -1+ELEMENT_DIMENSION+ctx.paddingY;
-        var sx = ELEMENT_DIMENSION-ctx.paddingX;
-        var sy = ELEMENT_DIMENSION-ctx.paddingY;
+        var h = ONE_THIRD*2, hh = h/2;
+        var ty = -1+hh;
         for (var obj of children) {
             ctx.save();
+
+			// translate by the current offset from the top and scale by the
+			// half-height of a child element
             ctx.translate(0,ty);
-            ctx.scale(sx,sy);
+            ctx.scale(ONE_THIRD,hh);
+            
+            ctx.drawPolygon([-1,-1,1,-1,1,1,-1,1]);
+            ctx.lineWidth = 0.005;
+            ctx.strokeStyle = "#0000ff";
+            ctx.stroke();
+            ctx.strokeStyle = "#000000";
+            
             obj.draw(ctx);
             ctx.restore();
 
-            // advance to next vertical position
-            ty += ELEMENT_DIMENSION + ctx.paddingY;
+            // advance to next vertical position; we obtain this from the child
+            // which may have a nested structure; we multiply by 1/3 since
+            // the child has been scaled by that factor
+            ty += obj.getDepth() * ONE_THIRD;
         }
 
         ctx.restore();
+    }
+    
+    // getDepth() - we need to be able to export our depth to somebody else;
+    // the depth value is how many y-units we have (which is always one more than
+    // the maximum positive y value available)
+    function getDepth() {
+    	return maxy + 1;
     }
 
     // toggle() - toggle selection status of element
@@ -243,8 +281,24 @@ function FlowBlockVisual(label) {
         selected = !selected;
     }
 
+	// addChild() - add a child element to the block; adjust our size if needed
     function addChild(child) {
         children.push(child);
+        
+        // each child element will take up 2/3 units
+        var y = -1;
+        for (var obj of children) {
+        	// each child lives in its own coordinate system that was scaled by
+        	// one-third
+        	y += obj.getDepth() * ONE_THIRD;
+        }
+        
+        if (y > maxy) {
+        	maxy = y;
+        	if (adjustDepth !== undefined) {
+        		adjustDepth();
+        	}
+        }
     }
 
     ////////////////////////////////////////////////////////////////////////////
@@ -252,13 +306,14 @@ function FlowBlockVisual(label) {
     ////////////////////////////////////////////////////////////////////////////
 
     this.draw = draw;
+    this.getDepth = getDepth;
     this.toggle = toggle;
     this.addChild = addChild;
 }
 
-// FlowProcedureVisual - represents a visual element representing a procedural
+// FlowOperationVisual - represents a visual element representing a procedural
 // operation in the program
-function FlowProcedureVisual(label) {
+function FlowOperationVisual(label,adjustDepth) {
     var selected = false;
 
     ////////////////////////////////////////////////////////////////////////////
@@ -267,7 +322,7 @@ function FlowProcedureVisual(label) {
 
     // draw() - main drawing operation
     function draw(ctx) {
-        ctx.drawPolygon([-1,-1,1,-1,1,1,-1,1]);
+        ctx.drawPolygon([-0.55,-0.5,0.55,-0.5,0.55,0.5,-0.55,0.5]);
         ctx.save();
         ctx.setTransform(1,0,0,1,0,0);
         if (selected) {
@@ -280,8 +335,9 @@ function FlowProcedureVisual(label) {
         ctx.stroke();
         ctx.restore();
         if (label != "") {
-            // draw label in center
-            ctx.drawText(label,0,0,1.8,0.5,true);
+            // draw label in center: maxWidth should be the width of the polygon
+            // drawn above; fontHeight should be half the height of the polygon
+            ctx.drawText(label,0,0,1.1,0.5,true);
         }
     }
 
@@ -290,10 +346,16 @@ function FlowProcedureVisual(label) {
         selected = !selected;
     }
 
+	// getDepth() - every proc. element will use 2 units (-1 to 1)
+	function getDepth() {
+		return 2;
+	}
+	
     ////////////////////////////////////////////////////////////////////////////
     // Public interface
     ////////////////////////////////////////////////////////////////////////////
 
     this.draw = draw;
     this.toggle = toggle;
+    this.getDepth = getDepth;
 }
