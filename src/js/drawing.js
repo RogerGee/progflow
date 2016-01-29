@@ -13,7 +13,7 @@ const DEFAULT_FONT = "monospace";
 function DrawingContext(canvas,canvasView) {
     var ctx = canvas.getContext("2d"); // HTML5 Canvas context
     // block for all program elements
-    var topBlock = new FlowBlockVisual("program",resizeCanvas);
+    var topBlock = new FlowBlockVisual("program");
 
     ////////////////////////////////////////////////////////////////////////////
     // Functions
@@ -22,8 +22,8 @@ function DrawingContext(canvas,canvasView) {
     // resizeCanvas() - this sizes the canvas so that it fits into the space provided
     // for it (i.e. the canvas view)
     function resizeCanvas() {
-    	var depth = topBlock.getDepth();
-    
+        var depth = topBlock.getDepth();
+
         // use the canvas view's dimensions as a starting point; factor out any
         // initial scroll height from the view
         canvas.width = canvasView.clientWidth;
@@ -62,7 +62,7 @@ function DrawingContext(canvas,canvasView) {
         // render all of the drawable objects in our possession which fall under
         // the top-level block
         topBlock.draw(ctx);
-        
+
         drawArrow([-1,-1],[1,1]);
     }
 
@@ -80,9 +80,9 @@ function DrawingContext(canvas,canvasView) {
     // drawArrow() - renders a simple arrow graphic with the arrow head at the
     // 'end' position
     function drawArrow(start,end,fill) {
-    	if (fill === undefined) {
-    		fill = true;
-    	}
+        if (fill === undefined) {
+            fill = true;
+        }
 
         var v = {}, m, d, a, b;
         var head = [], headLength;
@@ -90,10 +90,10 @@ function DrawingContext(canvas,canvasView) {
         var sy = canvas.height / topBlock.getDepth();
 
         function makeVector(dir,len) {
-        	if (len === undefined) {
-        		len = 1;
-        	}
-        
+            if (len === undefined) {
+                len = 1;
+            }
+
             var vector = {};
             vector.x = Math.cos(dir) * len;
             vector.y = Math.sin(dir) * len;
@@ -133,8 +133,8 @@ function DrawingContext(canvas,canvasView) {
         if (fill)
             ctx.fill();
         else {
-        	ctx.lineWidth = 1.0;
-        	ctx.stroke();
+            ctx.lineWidth = 1.0;
+            ctx.stroke();
         }
         ctx.restore();
 
@@ -149,14 +149,14 @@ function DrawingContext(canvas,canvasView) {
         ctx.restore(); // return to original coordinate system
     }
 
-	// drawText() - draws text within max width at the location x,y; y is the
-	// center of the line of text; if center is true then the text is centered
-	// around x,y
+    // drawText() - draws text within max width at the location x,y; y is the
+    // center of the line of text; if center is true then the text is centered
+    // around x,y
     function drawText(txt,x,y,maxWidth,fontHeight,center) {
-    	if (center === undefined) {
-    		center = false;
-    	}
-    
+        if (center === undefined) {
+            center = false;
+        }
+
         var sx = canvas.width / 2;
         var sy = canvas.height / topBlock.getDepth();
 
@@ -195,24 +195,30 @@ function DrawingContext(canvas,canvasView) {
     ////////////////////////////////////////////////////////////////////////////
 
     for (var i = 0;i < 20;++i)
-    	topBlock.addChild(new FlowOperationVisual("assign "+(i+1))); //test
-    
+        topBlock.addChild(new FlowOperationVisual("assign "+(i+1))); //test
+
+    topBlock.setDepthChangeCallback(resizeCanvas);
     resizeCanvas();
 }
 
-/* Visuals - 
+/* Visuals -
 
-	Visuals represent the set of rendered elements used to compose a program
-	flow diagram. Each object takes a label and a function called 'adjustDepth'
-	which should be called when the depth of an element changes.
+    Visuals represent the set of rendered elements used to compose a program
+    flow diagram. Each object takes a label that may be left empty. Each object
+    implements the following methods:
+        - draw: render the visual
+        - getDepth: get number of units in visual's height
+        - setDepthChangeCallback: set a callback to be called whenever the
+            visual's depth changes
 */
 
 // FlowBlockVisual - represents the visual component of a block of program flow
 // diagram elements rendered on the screen
-function FlowBlockVisual(label,adjustDepth) {
+function FlowBlockVisual(label) {
     var children = []; // list of child drawables
     var selected = false; // selected flag
     var maxy = 1.0; // max y-coordinate for our coordinate system
+    var adjustDepth = null; // callback for depth adjustment notification
 
     ////////////////////////////////////////////////////////////////////////////
     // Functions
@@ -246,17 +252,11 @@ function FlowBlockVisual(label,adjustDepth) {
         for (var obj of children) {
             ctx.save();
 
-			// translate by the current offset from the top and scale by the
-			// half-height of a child element
+            // translate by the current offset from the top and scale by the
+            // half-height of a child element
             ctx.translate(0,ty);
             ctx.scale(ONE_THIRD,hh);
-            
-            ctx.drawPolygon([-1,-1,1,-1,1,1,-1,1]);
-            ctx.lineWidth = 0.005;
-            ctx.strokeStyle = "#0000ff";
-            ctx.stroke();
-            ctx.strokeStyle = "#000000";
-            
+
             obj.draw(ctx);
             ctx.restore();
 
@@ -268,12 +268,18 @@ function FlowBlockVisual(label,adjustDepth) {
 
         ctx.restore();
     }
-    
+
     // getDepth() - we need to be able to export our depth to somebody else;
     // the depth value is how many y-units we have (which is always one more than
     // the maximum positive y value available)
     function getDepth() {
-    	return maxy + 1;
+        return maxy + 1;
+    }
+
+    // setDepthChangeCallback() - sets the depth change callback that is called
+    // whenever the visual's depth changes
+    function setDepthChangeCallback(callback) {
+        adjustDepth = callback;
     }
 
     // toggle() - toggle selection status of element
@@ -281,23 +287,23 @@ function FlowBlockVisual(label,adjustDepth) {
         selected = !selected;
     }
 
-	// addChild() - add a child element to the block; adjust our size if needed
+    // addChild() - add a child element to the block; adjust our size if needed
     function addChild(child) {
         children.push(child);
-        
+
         // each child element will take up 2/3 units
         var y = -1;
         for (var obj of children) {
-        	// each child lives in its own coordinate system that was scaled by
-        	// one-third
-        	y += obj.getDepth() * ONE_THIRD;
+            // each child lives in its own coordinate system that was scaled by
+            // one-third
+            y += obj.getDepth() * ONE_THIRD;
         }
-        
+
         if (y > maxy) {
-        	maxy = y;
-        	if (adjustDepth !== undefined) {
-        		adjustDepth();
-        	}
+            maxy = y;
+            if (adjustDepth != null) {
+                adjustDepth();
+            }
         }
     }
 
@@ -307,13 +313,14 @@ function FlowBlockVisual(label,adjustDepth) {
 
     this.draw = draw;
     this.getDepth = getDepth;
+    this.setDepthChangeCallback = setDepthChangeCallback;
     this.toggle = toggle;
     this.addChild = addChild;
 }
 
 // FlowOperationVisual - represents a visual element representing a procedural
 // operation in the program
-function FlowOperationVisual(label,adjustDepth) {
+function FlowOperationVisual(label) {
     var selected = false;
 
     ////////////////////////////////////////////////////////////////////////////
@@ -346,11 +353,11 @@ function FlowOperationVisual(label,adjustDepth) {
         selected = !selected;
     }
 
-	// getDepth() - every proc. element will use 2 units (-1 to 1)
-	function getDepth() {
-		return 2;
-	}
-	
+    // getDepth() - every proc. element will use 2 units (-1 to 1)
+    function getDepth() {
+        return 2;
+    }
+
     ////////////////////////////////////////////////////////////////////////////
     // Public interface
     ////////////////////////////////////////////////////////////////////////////
