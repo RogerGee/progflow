@@ -14,6 +14,7 @@ function DrawingContext(canvas,canvasView) {
     var ctx = canvas.getContext("2d"); // HTML5 Canvas context
     // block for all program elements
     var topBlock = new FlowBlockVisual("program");
+    var currentBlock = topBlock;
 
     ////////////////////////////////////////////////////////////////////////////
     // Functions
@@ -22,12 +23,12 @@ function DrawingContext(canvas,canvasView) {
     // resizeCanvas() - this sizes the canvas so that it fits into the space provided
     // for it (i.e. the canvas view)
     function resizeCanvas() {
-        var depth = topBlock.getDepth();
+        var height = topBlock.getHeight();
 
         // use the canvas view's dimensions as a starting point; factor out any
         // initial scroll height from the view
         canvas.width = canvasView.clientWidth;
-        canvas.height = canvasView.clientHeight/2 * depth;
+        canvas.height = canvasView.clientHeight/2 * height;
         canvas.height -= canvasView.scrollHeight - canvas.clientHeight;
 
         // compute padding amounts according to the aspect ratio of the canvas
@@ -51,17 +52,17 @@ function DrawingContext(canvas,canvasView) {
         ctx.fillStyle = "#000000";
 
         // set up a coordinate system such that the ranges x:[-1,1] and y:[-1,x-1]
-        // map to the entire surface of the canvas where x is the depth
-        var depth = topBlock.getDepth();
+        // map to the entire surface of the canvas where x is the height
+        var height = currentBlock.getHeight();
         var hw = canvas.width / 2, hh = canvas.height / 2;
         ctx.setTransform(1,0,0,1,0,0);
         ctx.translate(hw,hh); // translate to center of canvas
-        ctx.scale(canvas.width/(2+VISUAL_PADDING),canvas.height/(depth+VISUAL_PADDING));
-        ctx.translate(0,-depth/2+1); // adjust y such that there is one unit up
+        ctx.scale(canvas.width/(2+VISUAL_PADDING),canvas.height/(height+VISUAL_PADDING));
+        ctx.translate(0,-height/2+1); // adjust y such that there is one unit up
 
         // render all of the drawable objects in our possession which fall under
-        // the top-level block
-        topBlock.draw(ctx);
+        // the currently selected block
+        currentBlock.draw(ctx);
 
         drawArrow([-1,-1],[1,1]);
     }
@@ -87,7 +88,7 @@ function DrawingContext(canvas,canvasView) {
         var v = {}, m, d, a, b;
         var head = [], headLength;
         var sx = canvas.width / 2;
-        var sy = canvas.height / topBlock.getDepth();
+        var sy = canvas.height / currentBlock.getHeight();
 
         function makeVector(dir,len) {
             if (len === undefined) {
@@ -158,7 +159,7 @@ function DrawingContext(canvas,canvasView) {
         }
 
         var sx = canvas.width / 2;
-        var sy = canvas.height / topBlock.getDepth();
+        var sy = canvas.height / currentBlock.getHeight();
 
         if (center) {
             ctx.textAlign = "center";
@@ -180,12 +181,22 @@ function DrawingContext(canvas,canvasView) {
         ctx.restore();
     }
 
+    // addBlock() - create new procedure block under top-block; this is used to
+    // add top-level procedure visuals to the context
+    function addBlock(label) {
+        var element = new FlowBlockVisual(label);
+        topBlock.addChild(element);
+        drawScreen();
+        return element;
+    }
+
     ////////////////////////////////////////////////////////////////////////////
     // Public interface
     ////////////////////////////////////////////////////////////////////////////
 
     this.resizeCanvas = resizeCanvas;
     this.drawScreen = drawScreen;
+    this.addBlock = addBlock;
     ctx.drawPolygon = drawPolygon;
     ctx.drawArrow = drawArrow;
     ctx.drawText = drawText;
@@ -194,10 +205,8 @@ function DrawingContext(canvas,canvasView) {
     // Initialization
     ////////////////////////////////////////////////////////////////////////////
 
-    for (var i = 0;i < 20;++i)
-        topBlock.addChild(new FlowOperationVisual("assign "+(i+1))); //test
-
-    topBlock.setDepthChangeCallback(resizeCanvas);
+    topBlock.setHeightChangeCallback(resizeCanvas);
+    topBlock.setIcon(false);
     resizeCanvas();
 }
 
@@ -207,9 +216,9 @@ function DrawingContext(canvas,canvasView) {
     flow diagram. Each object takes a label that may be left empty. Each object
     implements the following methods:
         - draw: render the visual
-        - getDepth: get number of units in visual's height
-        - setDepthChangeCallback: set a callback to be called whenever the
-            visual's depth changes
+        - getHeight: get number of units in visual's height
+        - setHeightChangeCallback: set a callback to be called whenever the
+            visual's height changes
 */
 
 // FlowBlockVisual - represents the visual component of a block of program flow
@@ -217,8 +226,9 @@ function DrawingContext(canvas,canvasView) {
 function FlowBlockVisual(label) {
     var children = []; // list of child drawables
     var selected = false; // selected flag
+    var iconified = true; // whether or not is iconified (i.e. made small)
     var maxy = 1.0; // max y-coordinate for our coordinate system
-    var adjustDepth = null; // callback for depth adjustment notification
+    var adjustHeight = null; // callback for height adjustment notification
 
     ////////////////////////////////////////////////////////////////////////////
     // Functions
@@ -241,9 +251,16 @@ function FlowBlockVisual(label) {
         ctx.stroke();
         ctx.restore();
         if (label != "") {
-            // draw label in upper-left corner; we must position the text at
-            // least half the font height down from the top
-            ctx.drawText(label,-0.99,-0.925,ONE_THIRD,0.15);
+            if (!iconified) {
+                // draw label in upper-left corner; we must position the text at
+                // least half the font height down from the top; since the visual
+                // is uniconified, then draw the label out of the way
+                ctx.drawText(label,-0.99,-0.925,ONE_THIRD,0.15);
+            }
+            else {
+                // the label is small so draw text over the visual's entire surface
+                ctx.drawText(label,0.0,0.0,2.0,getHeight()/2,true);
+            }
         }
 
         // render our children inside our rectangle
@@ -255,7 +272,7 @@ function FlowBlockVisual(label) {
             // translate by the current offset from the top and scale by the
             // half-height of a child element
             ctx.translate(0,ty);
-            ctx.scale(ONE_THIRD,hh);
+            ctx.scale(ONE_THIRD-VISUAL_PADDING,hh-VISUAL_PADDING);
 
             obj.draw(ctx);
             ctx.restore();
@@ -263,23 +280,29 @@ function FlowBlockVisual(label) {
             // advance to next vertical position; we obtain this from the child
             // which may have a nested structure; we multiply by 1/3 since
             // the child has been scaled by that factor
-            ty += obj.getDepth() * ONE_THIRD;
+            ty += obj.getHeight() * ONE_THIRD;
         }
 
         ctx.restore();
     }
 
-    // getDepth() - we need to be able to export our depth to somebody else;
-    // the depth value is how many y-units we have (which is always one more than
+    // connect() - draw an arrow between two different visual elements
+    function connect(a,b) {
+
+
+    }
+
+    // getHeight() - we need to be able to export our height to somebody else;
+    // the height value is how many y-units we have (which is always one more than
     // the maximum positive y value available)
-    function getDepth() {
+    function getHeight() {
         return maxy + 1;
     }
 
-    // setDepthChangeCallback() - sets the depth change callback that is called
-    // whenever the visual's depth changes
-    function setDepthChangeCallback(callback) {
-        adjustDepth = callback;
+    // setHeightChangeCallback() - sets the height change callback that is called
+    // whenever the visual's height changes
+    function setHeightChangeCallback(callback) {
+        adjustHeight = callback;
     }
 
     // toggle() - toggle selection status of element
@@ -287,22 +310,30 @@ function FlowBlockVisual(label) {
         selected = !selected;
     }
 
+    // setIcon() - tells the block visual what it's iconified status should be,
+    // this changes the behavior of the visual element
+    function setIcon(value) {
+        iconified = value;
+    }
+
     // addChild() - add a child element to the block; adjust our size if needed
     function addChild(child) {
         children.push(child);
 
-        // each child element will take up 2/3 units
+        // each child element will normally take up 2/3 units
         var y = -1;
         for (var obj of children) {
             // each child lives in its own coordinate system that was scaled by
             // one-third
-            y += obj.getDepth() * ONE_THIRD;
+            y += obj.getHeight() * ONE_THIRD;
         }
 
+        // if the new height is greater than the current height then adjust the
+        // height
         if (y > maxy) {
             maxy = y;
-            if (adjustDepth != null) {
-                adjustDepth();
+            if (adjustHeight != null) {
+                adjustHeight();
             }
         }
     }
@@ -312,9 +343,10 @@ function FlowBlockVisual(label) {
     ////////////////////////////////////////////////////////////////////////////
 
     this.draw = draw;
-    this.getDepth = getDepth;
-    this.setDepthChangeCallback = setDepthChangeCallback;
+    this.getHeight = getHeight;
+    this.setHeightChangeCallback = setHeightChangeCallback;
     this.toggle = toggle;
+    this.setIcon = setIcon;
     this.addChild = addChild;
 }
 
@@ -353,8 +385,8 @@ function FlowOperationVisual(label) {
         selected = !selected;
     }
 
-    // getDepth() - every proc. element will use 2 units (-1 to 1)
-    function getDepth() {
+    // getHeight() - every proc. element will use 2 units (-1 to 1)
+    function getHeight() {
         return 2;
     }
 
@@ -364,5 +396,5 @@ function FlowOperationVisual(label) {
 
     this.draw = draw;
     this.toggle = toggle;
-    this.getDepth = getDepth;
+    this.getHeight = getHeight;
 }

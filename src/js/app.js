@@ -73,11 +73,15 @@ function initPage() {
     controlPanel.addButtonB("trace");
     controlPanel.addButtonB("reset");
     controlPanel.addBreak();
+    controlPanel.addButtonB("test",function(){
+
+    });
 
     // create terminal content
     terminal = new Terminal(terminalView);
     terminal.addLine(PROGNAME + " " + VERSION);
     terminal.addLine(AGENTINFO);
+    terminal.inputMode(function(s){context.addBlock(s);});
 
     // create canvas and render context
     var canvas = document.createElement("canvas");
