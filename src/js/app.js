@@ -19,12 +19,14 @@ function initPage() {
         //this.appendChild(document.createElement("br"));
         this.appendChild(document.createElement("hr"));
     }
-    controlPanel.addTextField = function(id) {
+    controlPanel.addTextField = function(id,maxLength) {
         var ed = document.createElement("input");
         this.appendChild(ed);
         ed.type = 'text';
         ed.className = 'control-panel-text-entry';
         ed.id = id;
+        if (typeof maxLength !== 'undefined')
+            ed.maxLength = maxLength;
 
         var ws = (this.offsetWidth - ed.previousSibling.offsetWidth-12) + "px";
         ed.style.width = ws;
@@ -51,13 +53,16 @@ function initPage() {
         this.appendChild(lbl);
         lbl.className = 'control-panel-label';
     }
+    controlPanel.removeElement = function(elem) {
+        this.removeChild(elem);
+    }
 
     // create control panel buttons
-    controlPanel.addButtonB("new");
-    controlPanel.addTextField("flowchart-name");
-    controlPanel.addButtonB("save");
-    controlPanel.addButtonB("open in new tab");
-    controlPanel.addButtonB("close project");
+    controlPanel.addButtonB("new",buttonNew);
+    controlPanel.addTextField("flowchart-name",16);
+    controlPanel.addButtonB("save",buttonSave);
+    controlPanel.addButtonB("open in new tab",buttonOpenInNewTab);
+    controlPanel.addButtonB("close project",buttonCloseProject);
     controlPanel.addBreak();
     controlPanel.addButtonA("assign");
     controlPanel.addButtonA("in");
@@ -73,22 +78,25 @@ function initPage() {
     controlPanel.addButtonB("trace");
     controlPanel.addButtonB("reset");
     controlPanel.addBreak();
-    controlPanel.addButtonB("test",function(){
-
-    });
 
     // create terminal content
     terminal = new Terminal(terminalView);
     terminal.addLine(PROGNAME + " " + VERSION);
     terminal.addLine(AGENTINFO);
-    terminal.inputMode(function(s){context.addBlock(s);});
+
+    //test
+    var f = function(s) {
+        context.addBlock(s);
+        terminal.inputMode(f);
+    };
+    terminal.inputMode(f);
 
     // create canvas and render context
     var canvas = document.createElement("canvas");
     canvas.appendChild(document.createTextNode("Browser does not support HTML5 Canvas"));
     canvas.setAttribute("id","canvas-main");
     canvasView.appendChild(canvas);
-    context = new DrawingContext(canvas,canvasView);
+    context = new DrawingContext(canvas,canvasView,"program");
 }
 
 // resizePage() - handle window resize event
@@ -104,6 +112,51 @@ function resizePage() {
     // resize canvas
     context.resizeCanvas();
 }
+
+////////////////////////////////////////////////////////////////////////////////
+// Button handlers for main UI
+////////////////////////////////////////////////////////////////////////////////
+
+function buttonNew(e) {
+    // overwrite the current context with another one
+    var canvas = document.getElementById("canvas-main");
+    var canvasView = document.getElementById("div-canvas-view");
+
+    // grab the name of the new project from the box
+    var name = document.getElementById("flowchart-name").value;
+    if (name == "") {
+        alert("Please specify a project name in the input field at left.");
+        return;
+    }
+
+    // TODO: check save state
+
+    context = new DrawingContext(canvas,canvasView,name);
+}
+
+function buttonSave(e) {
+    // generate a savable representation of the program and download it as a
+    // data-URL
+
+}
+
+function buttonOpenInNewTab(e) {
+
+}
+
+function buttonCloseProject(e) {
+    // this is really just to help OCD people clear the screen
+    var canvas = document.getElementById("canvas-main");
+    var canvasView = document.getElementById("div-canvas-view");
+
+    // TODO: check save state
+
+    context = new DrawingContext(canvas,canvasView,"program");
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// Initialization
+////////////////////////////////////////////////////////////////////////////////
 
 // setup event handlers
 window.onload = initPage;

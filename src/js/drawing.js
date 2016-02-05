@@ -1,7 +1,7 @@
 // drawing.js - progflow
 
 const SELECT_COLOR = "#0000ff"; // color of selection background
-const SELECT_ALPHA = 0.15; // percent of alpha component for selected drawables
+const SELECT_ALPHA = 0.10; // percent of alpha component for selected drawables
 const VISUAL_PADDING = 0.05; // how much padding in coordinates
 const ONE_THIRD = 0.3333333333333333333333333; // we use this a lot
 const ARROW_HEAD_ANGLE = 0.37887902; // angle of arrow head barbs from shaft
@@ -10,11 +10,12 @@ const ARROW_SHAFT_WIDTH = 0.001; // width of arrow shaft
 const DEFAULT_FONT = "monospace";
 
 // DrawingContext - handles top-level drawing operations
-function DrawingContext(canvas,canvasView) {
+function DrawingContext(canvas,canvasView,programName) {
     var ctx = canvas.getContext("2d"); // HTML5 Canvas context
     // block for all program elements
-    var topBlock = new FlowBlockVisual("program");
+    var topBlock = new FlowBlockVisual(programName);
     var currentBlock = topBlock;
+    var blockStack = [];
 
     ////////////////////////////////////////////////////////////////////////////
     // Functions
@@ -63,8 +64,6 @@ function DrawingContext(canvas,canvasView) {
         // render all of the drawable objects in our possession which fall under
         // the currently selected block
         currentBlock.draw(ctx);
-
-        drawArrow([-1,-1],[1,1]);
     }
 
     // drawPolygon() - draws a series of connected line segments to form a
@@ -185,9 +184,42 @@ function DrawingContext(canvas,canvasView) {
     // add top-level procedure visuals to the context
     function addBlock(label) {
         var element = new FlowBlockVisual(label);
+        element.setHeightChangeCallback(resizeCanvas);
         topBlock.addChild(element);
         drawScreen();
         return element;
+    }
+
+    // saveBlock() - saves the current block and changes the current to the
+    // specified block visual
+    function saveBlock(block) {
+        if (typeof block.setIcon == 'undefined')
+            // 'block' is not a block visual
+            return;
+        currentBlock.setIcon(true);
+        blockStack.push(currentBlock);
+        currentBlock = block;
+        block.setIcon(false);
+        resizeCanvas(); // this redraws the screen
+    }
+
+    // restoreBlock() - restores the previous current block
+    function restoreBlock() {
+        if (blockStack.length > 0) {
+            currentBlock.setIcon(true);
+            currentBlock = blockStack.pop();
+            currentBlock.setIcon(false);
+            resizeCanvas(); // this redraws the screen
+        }
+    }
+
+    // onCanvasClick() - called when the user clicks the canvas
+    function onCanvasClick(args) {
+        var cx = args.clientX, cy = args.clientY;
+
+        // transform pixel coordinates according to how we transform the current
+        // block visual in drawScreen()
+
     }
 
     ////////////////////////////////////////////////////////////////////////////
@@ -197,9 +229,12 @@ function DrawingContext(canvas,canvasView) {
     this.resizeCanvas = resizeCanvas;
     this.drawScreen = drawScreen;
     this.addBlock = addBlock;
+    this.saveBlock = saveBlock;
+    this.restoreBlock = restoreBlock;
     ctx.drawPolygon = drawPolygon;
     ctx.drawArrow = drawArrow;
     ctx.drawText = drawText;
+    canvas.onclick = onCanvasClick;
 
     ////////////////////////////////////////////////////////////////////////////
     // Initialization
@@ -219,13 +254,14 @@ function DrawingContext(canvas,canvasView) {
         - getHeight: get number of units in visual's height
         - setHeightChangeCallback: set a callback to be called whenever the
             visual's height changes
+        - getBounds: get coordinate bounds given "upper", "lower", "left", "right",
+            ETC.
 */
 
 // FlowBlockVisual - represents the visual component of a block of program flow
 // diagram elements rendered on the screen
 function FlowBlockVisual(label) {
     var children = []; // list of child drawables
-    var selected = false; // selected flag
     var iconified = true; // whether or not is iconified (i.e. made small)
     var maxy = 1.0; // max y-coordinate for our coordinate system
     var adjustHeight = null; // callback for height adjustment notification
@@ -237,16 +273,10 @@ function FlowBlockVisual(label) {
     function draw(ctx) {
         // draw the box representing the block
         ctx.save();
-        ctx.drawPolygon([-1,-1,1,-1,1,maxy,-1,maxy]);
+        ctx.drawPolygon(getBounds());
         ctx.save();
         ctx.setTransform(1,0,0,1,0,0);
         ctx.setLineDash([2,5]);
-        if (selected) {
-            context.fillStyle = SELECT_COLOR;
-            context.globalAlpha = SELECT_ALPHA;
-            context.fill();
-            context.globalAlpha = 1.0;
-        }
         ctx.lineWidth = 1.0;
         ctx.stroke();
         ctx.restore();
@@ -255,7 +285,7 @@ function FlowBlockVisual(label) {
                 // draw label in upper-left corner; we must position the text at
                 // least half the font height down from the top; since the visual
                 // is uniconified, then draw the label out of the way
-                ctx.drawText(label,-0.99,-0.925,ONE_THIRD,0.15);
+                ctx.drawText(label,-0.99,-0.925,2.0,0.15);
             }
             else {
                 // the label is small so draw text over the visual's entire surface
@@ -264,18 +294,26 @@ function FlowBlockVisual(label) {
         }
 
         // render our children inside our rectangle
-        var h = ONE_THIRD*2, hh = h/2;
-        var ty = -1+hh;
+        var ty = -1+ONE_THIRD;
+        var last = null, lastTy = null;
         for (var obj of children) {
             ctx.save();
 
             // translate by the current offset from the top and scale by the
             // half-height of a child element
             ctx.translate(0,ty);
-            ctx.scale(ONE_THIRD-VISUAL_PADDING,hh-VISUAL_PADDING);
+            ctx.scale(ONE_THIRD-VISUAL_PADDING,ONE_THIRD-VISUAL_PADDING);
 
+            // draw the sub-visual
             obj.draw(ctx);
             ctx.restore();
+
+            // draw connection arrow from last object to this one (this may do)
+            // nothing if the implementation of the visual doesn't specify arrows
+            if (last != null)
+                connect(ctx,last,obj,lastTy,ty);
+            last = obj;
+            lastTy = ty;
 
             // advance to next vertical position; we obtain this from the child
             // which may have a nested structure; we multiply by 1/3 since
@@ -287,9 +325,19 @@ function FlowBlockVisual(label) {
     }
 
     // connect() - draw an arrow between two different visual elements
-    function connect(a,b) {
+    function connect(ctx,a,b,off1,off2) {
+        var hy = b.getBounds("arrowUpper");
+        var ty = a.getBounds("arrowLower");
 
+        // a visual may not define arrow bounds (meaning an arrow shouldn't be drawn)
+        if (hy != null && ty != null) {
+            // perform the same transformations that draw() does but with a different
+            // translation for the head and tail
+            hy *= ONE_THIRD; hy += off2;
+            ty *= ONE_THIRD; ty += off1;
 
+            ctx.drawArrow([0,ty],[0,hy]);
+        }
     }
 
     // getHeight() - we need to be able to export our height to somebody else;
@@ -303,11 +351,6 @@ function FlowBlockVisual(label) {
     // whenever the visual's height changes
     function setHeightChangeCallback(callback) {
         adjustHeight = callback;
-    }
-
-    // toggle() - toggle selection status of element
-    function toggle() {
-        selected = !selected;
     }
 
     // setIcon() - tells the block visual what it's iconified status should be,
@@ -338,6 +381,22 @@ function FlowBlockVisual(label) {
         }
     }
 
+    // getBounds() - gets bounding box info for visual; the block visual doesn't
+    // support arrows so arrow bounds are undefined
+    function getBounds(kind) {
+        if (typeof kind == "undefined")
+            return [-1,-1, 1,-1, 1,maxy, -1,maxy];
+        if (kind == "upper")
+            return -1;
+        if (kind == "lower")
+            return 1;
+        if (kind == "left")
+            return -1;
+        if (kind == "right")
+            return 1;
+        return null;
+    }
+
     ////////////////////////////////////////////////////////////////////////////
     // Public interface
     ////////////////////////////////////////////////////////////////////////////
@@ -345,7 +404,7 @@ function FlowBlockVisual(label) {
     this.draw = draw;
     this.getHeight = getHeight;
     this.setHeightChangeCallback = setHeightChangeCallback;
-    this.toggle = toggle;
+    this.getBounds = getBounds;
     this.setIcon = setIcon;
     this.addChild = addChild;
 }
@@ -361,14 +420,14 @@ function FlowOperationVisual(label) {
 
     // draw() - main drawing operation
     function draw(ctx) {
-        ctx.drawPolygon([-0.55,-0.5,0.55,-0.5,0.55,0.5,-0.55,0.5]);
+        ctx.drawPolygon(getBounds());
         ctx.save();
         ctx.setTransform(1,0,0,1,0,0);
         if (selected) {
-            context.fillStyle = SELECT_COLOR;
-            context.globalAlpha = SELECT_ALPHA;
-            context.fill();
-            context.globalAlpha = 1.0;
+            ctx.fillStyle = SELECT_COLOR;
+            ctx.globalAlpha = SELECT_ALPHA;
+            ctx.fill();
+            ctx.globalAlpha = 1.0;
         }
         ctx.lineWidth = 1.0;
         ctx.stroke();
@@ -390,6 +449,21 @@ function FlowOperationVisual(label) {
         return 2;
     }
 
+    // getBounds() - gets the bounds of the visual's bounding box
+    function getBounds(kind) {
+        if (kind == "upper" || kind == "arrowUpper")
+            return -0.5;
+        if (kind == "lower" || kind == "arrowLower")
+            return 0.5;
+        if (kind == "left")
+            return -0.55;
+        if (kind == "right")
+            return 0.55;
+        if (typeof kind == "undefined")
+            return [-0.55,-0.5,0.55,-0.5,0.55,0.5,-0.55,0.5];
+        return null;
+    }
+
     ////////////////////////////////////////////////////////////////////////////
     // Public interface
     ////////////////////////////////////////////////////////////////////////////
@@ -397,4 +471,5 @@ function FlowOperationVisual(label) {
     this.draw = draw;
     this.toggle = toggle;
     this.getHeight = getHeight;
+    this.getBounds = getBounds;
 }
