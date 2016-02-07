@@ -47,6 +47,9 @@ function DrawingContext(canvas,canvasView,programName) {
 
     // drawScreen() - perform all the drawing on the canvas
     function drawScreen() {
+        // clear any existing transformation
+        ctx.setTransform(1,0,0,1,0,0);
+
         // fill background
         ctx.fillStyle = "#fafafa";
         ctx.fillRect(0,0,canvas.width,canvas.height);
@@ -56,7 +59,6 @@ function DrawingContext(canvas,canvasView,programName) {
         // map to the entire surface of the canvas where x is the height
         var height = currentBlock.getHeight();
         var hw = canvas.width / 2, hh = canvas.height / 2;
-        ctx.setTransform(1,0,0,1,0,0);
         ctx.translate(hw,hh); // translate to center of canvas
         ctx.scale(canvas.width/(2+VISUAL_PADDING),canvas.height/(height+VISUAL_PADDING));
         ctx.translate(0,-height/2+1); // adjust y such that there is one unit up
@@ -185,6 +187,7 @@ function DrawingContext(canvas,canvasView,programName) {
     function addBlock(label) {
         var element = new FlowBlockVisual(label);
         element.setHeightChangeCallback(resizeCanvas);
+        element.addChild(new FlowOperationVisual("hi there"));
         topBlock.addChild(element);
         drawScreen();
         return element;
@@ -215,11 +218,34 @@ function DrawingContext(canvas,canvasView,programName) {
 
     // onCanvasClick() - called when the user clicks the canvas
     function onCanvasClick(args) {
+        // correct the coordinates: this will also account for any overflow
+        // applied to the canvas
         var cx = args.clientX, cy = args.clientY;
+        var rect = canvas.getBoundingClientRect();
+        cx -= rect.left; cy -= rect.top;
 
         // transform pixel coordinates according to how we transform the current
-        // block visual in drawScreen()
+        // block visual in drawScreen(); this the opposite of that transformation
+        var height = currentBlock.getHeight();
+        var hw = canvas.width / 2, hh = canvas.height / 2;
+        cx -= hw; cy -= hh;
+        cx /= canvas.width/(2+VISUAL_PADDING); cy /= canvas.height/(height+VISUAL_PADDING);
+        cx -= 0; cy -= -height/2+1;
 
+        // see if a child element was clicked; if a block was clicked and is
+        // current then push back to previous context; otherwise push forward
+        // to a new context
+        var elem = currentBlock.onClick(cx,cy);
+        if (elem != null) {
+            if (elem === currentBlock)
+                restoreBlock();
+            else if (typeof elem.type != "undefined" && elem.type == "block")
+                saveBlock(elem);
+            if (typeof elem.toggle != "undefined") {
+                elem.toggle();
+                drawScreen();
+            }
+        }
     }
 
     ////////////////////////////////////////////////////////////////////////////
@@ -251,6 +277,7 @@ function DrawingContext(canvas,canvasView,programName) {
     flow diagram. Each object takes a label that may be left empty. Each object
     implements the following methods:
         - draw: render the visual
+        - onClick: get element that was clicked given coordinates
         - getHeight: get number of units in visual's height
         - setHeightChangeCallback: set a callback to be called whenever the
             visual's height changes
@@ -265,6 +292,7 @@ function FlowBlockVisual(label) {
     var iconified = true; // whether or not is iconified (i.e. made small)
     var maxy = 1.0; // max y-coordinate for our coordinate system
     var adjustHeight = null; // callback for height adjustment notification
+    var logic = new FlowBlockLogic(this); // logic state of visual
 
     ////////////////////////////////////////////////////////////////////////////
     // Functions
@@ -308,8 +336,8 @@ function FlowBlockVisual(label) {
             obj.draw(ctx);
             ctx.restore();
 
-            // draw connection arrow from last object to this one (this may do)
-            // nothing if the implementation of the visual doesn't specify arrows
+            // draw connection arrow from last object to this one (this may do
+            // nothing if the implementation of the visual doesn't specify arrows)
             if (last != null)
                 connect(ctx,last,obj,lastTy,ty);
             last = obj;
@@ -338,6 +366,39 @@ function FlowBlockVisual(label) {
 
             ctx.drawArrow([0,ty],[0,hy]);
         }
+    }
+
+    // onClick() - return the child element that was clicked; x and y are coordinates
+    // in the space we receive from our parent; if no direct child element was
+    // found and the coordinates lie within our bounds, then return 'this'
+    function onClick(x,y) {
+        // only select child elements if we are not iconified
+        if (!iconified) {
+            // translate coordinates relative to the coordinates space for each child
+            var cx, cy;
+            var ty = -1+ONE_THIRD;
+            cx = x / ONE_THIRD; cy = (y-ty) / ONE_THIRD;
+
+            for (var obj of children) {
+                // call 'onClick()' on the child element so it can bounds check itself
+                // and any children it might have
+                var result = obj.onClick(cx,cy);
+                if (result != null)
+                    return result;
+
+                var amt = obj.getHeight() * ONE_THIRD;
+                ty += amt;
+                cy -= amt / ONE_THIRD;
+            }
+        }
+
+        if (x >= getBounds("left") && x <= getBounds("right")
+            && y >= getBounds("upper") && y <= getBounds("lower"))
+        {
+            return this;
+        }
+
+        return null;
     }
 
     // getHeight() - we need to be able to export our height to somebody else;
@@ -381,6 +442,13 @@ function FlowBlockVisual(label) {
         }
     }
 
+    // removeChild() - remove specified child visual from the child collection
+    function removeChild(child) {
+        var index = children.indexOf(child);
+        if (index >= 0)
+            children.splice(index,1);
+    }
+
     // getBounds() - gets bounding box info for visual; the block visual doesn't
     // support arrows so arrow bounds are undefined
     function getBounds(kind) {
@@ -389,7 +457,7 @@ function FlowBlockVisual(label) {
         if (kind == "upper")
             return -1;
         if (kind == "lower")
-            return 1;
+            return maxy;
         if (kind == "left")
             return -1;
         if (kind == "right")
@@ -407,6 +475,9 @@ function FlowBlockVisual(label) {
     this.getBounds = getBounds;
     this.setIcon = setIcon;
     this.addChild = addChild;
+    this.removeChild = removeChild;
+    this.onClick = onClick;
+    this.type = 'block';
 }
 
 // FlowOperationVisual - represents a visual element representing a procedural
@@ -464,6 +535,17 @@ function FlowOperationVisual(label) {
         return null;
     }
 
+    // onClick(x,y) - see if the click was inside our region
+    function onClick(x,y) {
+        if (x >= getBounds("left") && x <= getBounds("right")
+            && y >= getBounds("upper") && y <= getBounds("lower"))
+        {
+            return this;
+        }
+
+        return null;
+    }
+
     ////////////////////////////////////////////////////////////////////////////
     // Public interface
     ////////////////////////////////////////////////////////////////////////////
@@ -472,4 +554,6 @@ function FlowOperationVisual(label) {
     this.toggle = toggle;
     this.getHeight = getHeight;
     this.getBounds = getBounds;
+    this.onClick = onClick;
+    this.type = 'operation';
 }
