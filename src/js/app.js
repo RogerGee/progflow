@@ -64,7 +64,7 @@ function initPage() {
     controlPanel.addButtonB("open in new tab",buttonOpenInNewTab);
     controlPanel.addButtonB("close project",buttonCloseProject);
     controlPanel.addBreak();
-    controlPanel.addButtonA("assign");
+    controlPanel.addButtonA("assign",buttonMakeAssignmentNode);
     controlPanel.addButtonA("in");
     controlPanel.addButtonA("out");
     controlPanel.addButtonA("if");
@@ -152,6 +152,10 @@ function buttonCloseProject(e) {
     // TODO: check save state
 
     context = new DrawingContext(canvas,canvasView,"program");
+}
+
+function buttonMakeAssignmentNode(e) {
+    context.addNode('flowoperation','assign'); //test
 }
 
 ////////////////////////////////////////////////////////////////////////////////

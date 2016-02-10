@@ -24,7 +24,7 @@ function DrawingContext(canvas,canvasView,programName) {
     // resizeCanvas() - this sizes the canvas so that it fits into the space provided
     // for it (i.e. the canvas view)
     function resizeCanvas() {
-        var height = topBlock.getHeight();
+        var height = currentBlock.getHeight();
 
         // use the canvas view's dimensions as a starting point; factor out any
         // initial scroll height from the view
@@ -185,9 +185,9 @@ function DrawingContext(canvas,canvasView,programName) {
     // addBlock() - create new procedure block under top-block; this is used to
     // add top-level procedure visuals to the context
     function addBlock(label) {
-        var element = new FlowBlockVisual(label);
+        var element = new FlowBlockVisual(label); // has no parent logic to inherit
         element.setHeightChangeCallback(resizeCanvas);
-        element.addChild(new FlowOperationVisual("hi there"));
+        element.addChild(new FlowOperationVisual("hi there")); //test
         topBlock.addChild(element);
         drawScreen();
         return element;
@@ -199,6 +199,9 @@ function DrawingContext(canvas,canvasView,programName) {
         if (typeof block.setIcon == 'undefined')
             // 'block' is not a block visual
             return;
+        if (currentBlock.isChildToggled())
+            // block has toggled child
+            return;
         currentBlock.setIcon(true);
         blockStack.push(currentBlock);
         currentBlock = block;
@@ -206,13 +209,39 @@ function DrawingContext(canvas,canvasView,programName) {
         resizeCanvas(); // this redraws the screen
     }
 
-    // restoreBlock() - restores the previous current block
+    // restoreBlock() - restores the previous current block; no child elements
+    // may be toggled for this operation to succeed
     function restoreBlock() {
-        if (blockStack.length > 0) {
+        if (blockStack.length > 0 && !currentBlock.isChildToggled()) {
             currentBlock.setIcon(true);
             currentBlock = blockStack.pop();
             currentBlock.setIcon(false);
             resizeCanvas(); // this redraws the screen
+        }
+    }
+
+    // addNode() - creates and adds a child visual to the current block; the
+    // current block must not be the top block
+    function addNode(kind,label) {
+        var node = null;
+
+        // must not be in top block scope
+        if (currentBlock === topBlock)
+            return;
+
+        // create node based on kind; it gets a reference to the current block's
+        // logic object;
+        kind = kind.toLowerCase();
+        if (kind == "flowblock") {
+            node = new FlowBlockVisual(label,currentBlock);
+        }
+        else if (kind == "flowoperation") {
+            node = new FlowOperationVisual(label,currentBlock);
+        }
+
+        if (node != null) {
+            currentBlock.addChild(node);
+            drawScreen();
         }
     }
 
@@ -235,14 +264,15 @@ function DrawingContext(canvas,canvasView,programName) {
         // see if a child element was clicked; if a block was clicked and is
         // current then push back to previous context; otherwise push forward
         // to a new context
-        var elem = currentBlock.onClick(cx,cy);
+        var elem = currentBlock.onclick(cx,cy);
         if (elem != null) {
             if (elem === currentBlock)
                 restoreBlock();
             else if (typeof elem.type != "undefined" && elem.type == "block")
                 saveBlock(elem);
-            if (typeof elem.toggle != "undefined") {
-                elem.toggle();
+            if (typeof elem.ontoggle != "undefined") {
+                currentBlock.clearToggleExcept(elem); // make sure only one child is selected
+                elem.ontoggle();
                 drawScreen();
             }
         }
@@ -257,6 +287,7 @@ function DrawingContext(canvas,canvasView,programName) {
     this.addBlock = addBlock;
     this.saveBlock = saveBlock;
     this.restoreBlock = restoreBlock;
+    this.addNode = addNode;
     ctx.drawPolygon = drawPolygon;
     ctx.drawArrow = drawArrow;
     ctx.drawText = drawText;
@@ -274,25 +305,28 @@ function DrawingContext(canvas,canvasView,programName) {
 /* Visuals -
 
     Visuals represent the set of rendered elements used to compose a program
-    flow diagram. Each object takes a label that may be left empty. Each object
-    implements the following methods:
+    flow diagram. Each object takes a label that may be left empty and a
+    reference to a flow-block object that may be null. Each object implements the
+    following methods:
         - draw: render the visual
-        - onClick: get element that was clicked given coordinates
+        - onclick: get element that was clicked given coordinates
         - getHeight: get number of units in visual's height
         - setHeightChangeCallback: set a callback to be called whenever the
-            visual's height changes
+            visual's height changes [optional]
         - getBounds: get coordinate bounds given "upper", "lower", "left", "right",
             ETC.
+        - ontoggle: called when a click event occurred on the visual [optional]
+        - istoggled: called to ask if a visual is toggled [optional]
 */
 
 // FlowBlockVisual - represents the visual component of a block of program flow
 // diagram elements rendered on the screen
-function FlowBlockVisual(label) {
+function FlowBlockVisual(label,block) {
     var children = []; // list of child drawables
     var iconified = true; // whether or not is iconified (i.e. made small)
     var maxy = 1.0; // max y-coordinate for our coordinate system
     var adjustHeight = null; // callback for height adjustment notification
-    var logic = new FlowBlockLogic(this); // logic state of visual
+    var logic; // logic state of visual
 
     ////////////////////////////////////////////////////////////////////////////
     // Functions
@@ -316,8 +350,9 @@ function FlowBlockVisual(label) {
                 ctx.drawText(label,-0.99,-0.925,2.0,0.15);
             }
             else {
-                // the label is small so draw text over the visual's entire surface
-                ctx.drawText(label,0.0,0.0,2.0,getHeight()/2,true);
+                // the visual is small so draw text over the visual's entire surface
+                ctx.drawText(label,0.0,0.0,2.0,1.0,true);
+                ctx.globalAlpha = 0.5; // make sub-visuals a little lighter
             }
         }
 
@@ -330,7 +365,7 @@ function FlowBlockVisual(label) {
             // translate by the current offset from the top and scale by the
             // half-height of a child element
             ctx.translate(0,ty);
-            ctx.scale(ONE_THIRD-VISUAL_PADDING,ONE_THIRD-VISUAL_PADDING);
+            ctx.scale(ONE_THIRD,ONE_THIRD);
 
             // draw the sub-visual
             obj.draw(ctx);
@@ -368,10 +403,10 @@ function FlowBlockVisual(label) {
         }
     }
 
-    // onClick() - return the child element that was clicked; x and y are coordinates
+    // onclick() - return the child element that was clicked; x and y are coordinates
     // in the space we receive from our parent; if no direct child element was
     // found and the coordinates lie within our bounds, then return 'this'
-    function onClick(x,y) {
+    function onclick(x,y) {
         // only select child elements if we are not iconified
         if (!iconified) {
             // translate coordinates relative to the coordinates space for each child
@@ -380,11 +415,12 @@ function FlowBlockVisual(label) {
             cx = x / ONE_THIRD; cy = (y-ty) / ONE_THIRD;
 
             for (var obj of children) {
-                // call 'onClick()' on the child element so it can bounds check itself
+                // call 'onclick()' on the child element so it can bounds check itself
                 // and any children it might have
-                var result = obj.onClick(cx,cy);
-                if (result != null)
+                var result = obj.onclick(cx,cy);
+                if (result != null) {
                     return result;
+                }
 
                 var amt = obj.getHeight() * ONE_THIRD;
                 ty += amt;
@@ -418,12 +454,40 @@ function FlowBlockVisual(label) {
     // this changes the behavior of the visual element
     function setIcon(value) {
         iconified = value;
+
+        // this should toggle our block logic; the block is considered selected
+        // if it is not iconified
+        logic.ontoggle(!iconified);
     }
 
-    // addChild() - add a child element to the block; adjust our size if needed
+    // addChild() - add a child element to the block; adjust our size if needed;
+    // the child is added to the end or directly after the currently selected
+    // element
     function addChild(child) {
-        children.push(child);
+        if (typeof child.setHeightChangeCallback != "undefined")
+            child.setHeightChangeCallback(recalcHeight);
 
+        var index = getToggledIndex();
+        if (index == -1) {
+            // insert at end
+            children.push(child);
+        }
+        else {
+            // insert (after) at position
+            children.splice(index,0,child);
+            if (typeof child.ontoggle != "undefined") {
+                // untoggle current child and select the new one
+                children[index].ontoggle(); // must be toggleable
+                child.ontoggle();
+            }
+        }
+
+        recalcHeight();
+    }
+
+    // recalcHeight() - recalculate the height of the visual based on the heights
+    // of its child visuals
+    function recalcHeight() {
         // each child element will normally take up 2/3 units
         var y = -1;
         for (var obj of children) {
@@ -432,21 +496,26 @@ function FlowBlockVisual(label) {
             y += obj.getHeight() * ONE_THIRD;
         }
 
-        // if the new height is greater than the current height then adjust the
-        // height
-        if (y > maxy) {
+        if (y > 1.0) {
             maxy = y;
-            if (adjustHeight != null) {
-                adjustHeight();
-            }
+        }
+        else {
+            // the height may have decreased below 1.0
+            maxy = 1.0;
+        }
+
+        if (adjustHeight != null) {
+            adjustHeight(); // propogate the change back up to our parent
         }
     }
 
     // removeChild() - remove specified child visual from the child collection
     function removeChild(child) {
         var index = children.indexOf(child);
-        if (index >= 0)
+        if (index >= 0) {
             children.splice(index,1);
+            recalcHeight();
+        }
     }
 
     // getBounds() - gets bounding box info for visual; the block visual doesn't
@@ -465,6 +534,37 @@ function FlowBlockVisual(label) {
         return null;
     }
 
+    // isChildToggled() - determines if a child has been toggled
+    function isChildToggled() {
+        for (var obj of children) {
+            if (typeof obj.isToggled != "undefined")
+                if (obj.isToggled())
+                    return true;
+        }
+        return false;
+    }
+
+    // getToggledIndex() - returns the index of the currently toggled child visual
+    // or -1 if no child element is toggled
+    function getToggledIndex() {
+        var i = 0;
+        for (var obj of children) {
+            if (typeof obj.isToggled != "undefined" && obj.isToggled())
+                return i;
+            i += 1;
+        }
+        return -1;
+    }
+
+    // untoggleChild() - untoggles the currently selected child (if any)
+    function clearToggleExcept(unless) {
+        for (var obj of children) {
+            if (typeof unless == "undefined" || obj !== unless)
+                if (obj.isToggled())
+                    obj.ontoggle();
+        }
+    }
+
     ////////////////////////////////////////////////////////////////////////////
     // Public interface
     ////////////////////////////////////////////////////////////////////////////
@@ -476,14 +576,25 @@ function FlowBlockVisual(label) {
     this.setIcon = setIcon;
     this.addChild = addChild;
     this.removeChild = removeChild;
-    this.onClick = onClick;
+    this.getLogic = function(){return logic;};
+    this.isToggled = function(){return !iconified;};
+    this.isChildToggled = isChildToggled;
+    this.clearToggleExcept = clearToggleExcept;
+    this.onclick = onclick;
     this.type = 'block';
+
+    ////////////////////////////////////////////////////////////////////////////
+    // Initialization
+    ////////////////////////////////////////////////////////////////////////////
+
+    logic = new FlowBlockLogic(this,block);
 }
 
 // FlowOperationVisual - represents a visual element representing a procedural
 // operation in the program
-function FlowOperationVisual(label) {
+function FlowOperationVisual(label,block) {
     var selected = false;
+    var logic;
 
     ////////////////////////////////////////////////////////////////////////////
     // Functions
@@ -510,9 +621,10 @@ function FlowOperationVisual(label) {
         }
     }
 
-    // toggle() - toggle select status of object
-    function toggle() {
+    // ontoggle() - toggle select status of object and invoke logic object event
+    function ontoggle() {
         selected = !selected;
+        logic.ontoggle(selected);
     }
 
     // getHeight() - every proc. element will use 2 units (-1 to 1)
@@ -535,8 +647,8 @@ function FlowOperationVisual(label) {
         return null;
     }
 
-    // onClick(x,y) - see if the click was inside our region
-    function onClick(x,y) {
+    // onclick(x,y) - see if the click was inside our region
+    function onclick(x,y) {
         if (x >= getBounds("left") && x <= getBounds("right")
             && y >= getBounds("upper") && y <= getBounds("lower"))
         {
@@ -551,9 +663,16 @@ function FlowOperationVisual(label) {
     ////////////////////////////////////////////////////////////////////////////
 
     this.draw = draw;
-    this.toggle = toggle;
+    this.ontoggle = ontoggle;
     this.getHeight = getHeight;
     this.getBounds = getBounds;
-    this.onClick = onClick;
+    this.onclick = onclick;
+    this.isToggled = function(){return selected;};
     this.type = 'operation';
+
+    ////////////////////////////////////////////////////////////////////////////
+    // Initialization
+    ////////////////////////////////////////////////////////////////////////////
+
+    logic = new FlowOperationLogic(this,block);
 }
