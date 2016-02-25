@@ -360,11 +360,19 @@ function FlowBlockVisual(label,block) {
         var ty = -1+ONE_THIRD;
         var last = null, lastTy = null;
         for (var obj of children) {
+            // obtain the child's height; we must multiply it by 1/3 since the
+            // child will be scaled by that factor
+            var h = obj.getHeight() * ONE_THIRD, hh = h/2;
             ctx.save();
 
-            // translate by the current offset from the top and scale by the
-            // half-height of a child element
+            // translate to the center of the object (using its half-height);
+            // then scale by a factor that produces the visual padding; then
+            // translate by the current offset from the top and scale by 1/3
+            // (that will be the default height for a child element)
             ctx.translate(0,ty);
+            ctx.translate(0,hh-ONE_THIRD);
+            ctx.scale(1,1-VISUAL_PADDING/hh);
+            ctx.translate(0,-hh+ONE_THIRD);
             ctx.scale(ONE_THIRD,ONE_THIRD);
 
             // draw the sub-visual
@@ -378,10 +386,8 @@ function FlowBlockVisual(label,block) {
             last = obj;
             lastTy = ty;
 
-            // advance to next vertical position; we obtain this from the child
-            // which may have a nested structure; we multiply by 1/3 since
-            // the child has been scaled by that factor
-            ty += obj.getHeight() * ONE_THIRD;
+            // advance to next vertical position; we o
+            ty += h;
         }
 
         ctx.restore();
@@ -439,7 +445,7 @@ function FlowBlockVisual(label,block) {
 
     // getHeight() - we need to be able to export our height to somebody else;
     // the height value is how many y-units we have (which is always one more than
-    // the maximum positive y value available)
+    // the maximum positive y coordinate available)
     function getHeight() {
         return maxy + 1;
     }
@@ -474,7 +480,7 @@ function FlowBlockVisual(label,block) {
         }
         else {
             // insert (after) at position
-            children.splice(index,0,child);
+            children.splice(index+1,0,child);
             if (typeof child.ontoggle != "undefined") {
                 // untoggle current child and select the new one
                 children[index].ontoggle(); // must be toggleable
