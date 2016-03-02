@@ -1,6 +1,7 @@
 // app.js - progflow
 
 // globals
+var nodePanel;
 var terminal;
 var context;
 
@@ -14,70 +15,103 @@ function initPage() {
     var controlPanel = document.getElementById('div-control-panel');
     var terminalView = document.getElementById('div-terminal-view');
     var canvasView = document.getElementById('div-canvas-view');
+    var mainPanel = document.createElement('div');
+    mainPanel.id = 'div-main-panel';
+    mainPanel.className = 'div-main-panel';
 
-    controlPanel.addBreak = function() {
-        //this.appendChild(document.createElement("br"));
-        this.appendChild(document.createElement("hr"));
-    }
-    controlPanel.addTextField = function(id,maxLength) {
+    mainPanel.addBreak = function(visible) {
+        if (typeof visible == 'undefined')
+            visible = true;
+
+        if (visible)
+            this.appendChild(document.createElement("hr"));
+        else
+            this.appendChild(document.createElement("br"));
+    };
+    mainPanel.addTextField = function(id,maxLength,defaultText) {
+        if (typeof defaultText === 'undefined')
+            defaultText = "";
+
         var ed = document.createElement("input");
         this.appendChild(ed);
         ed.type = 'text';
         ed.className = 'control-panel-text-entry';
         ed.id = id;
+        ed.value = defaultText;
         if (typeof maxLength !== 'undefined')
             ed.maxLength = maxLength;
 
         var ws = (this.offsetWidth - ed.previousSibling.offsetWidth-12) + "px";
         ed.style.width = ws;
         this.appendChild(document.createElement("br"));
-    }
-    controlPanel.addButtonA = function(label,callback) {
+    };
+    mainPanel.addButtonA = function(label,callback) {
         var btn = document.createElement("button");
         this.appendChild(btn);
         btn.type = 'button';
         btn.className = 'control-panel-button-a';
         btn.appendChild(document.createTextNode(label));
         btn.onclick = callback;
-    }
-    controlPanel.addButtonB = function(label,callback) {
+    };
+    mainPanel.addButtonB = function(label,callback) {
         var btn = document.createElement("button");
         this.appendChild(btn);
         btn.type = 'button';
         btn.className = 'control-panel-button-b';
         btn.appendChild(document.createTextNode(label));
         btn.onclick = callback;
-    }
-    controlPanel.addLabel = function(label) {
-        var lbl = document.createTextNode(label);
-        this.appendChild(lbl);
-        lbl.className = 'control-panel-label';
-    }
-    controlPanel.removeElement = function(elem) {
-        this.removeChild(elem);
-    }
+    };
+    mainPanel.addLabel = function(label,bold) {
+        if (typeof bold === 'undefined')
+            bold = false;
 
-    // create control panel buttons
-    controlPanel.addButtonB("new",buttonNew);
-    controlPanel.addTextField("flowchart-name",16);
-    controlPanel.addButtonB("save",buttonSave);
-    controlPanel.addButtonB("open in new tab",buttonOpenInNewTab);
-    controlPanel.addButtonB("close project",buttonCloseProject);
-    controlPanel.addBreak();
-    controlPanel.addButtonA("assign",buttonMakeAssignmentNode);
-    controlPanel.addButtonA("in");
-    controlPanel.addButtonA("out");
-    controlPanel.addButtonA("if");
-    controlPanel.addButtonA("while");
-    controlPanel.addButtonA("for");
-    controlPanel.addButtonA("call");
-    controlPanel.addButtonA("proc");
-    controlPanel.addBreak();
-    controlPanel.addButtonB("C++");
-    controlPanel.addButtonB("exec");
-    controlPanel.addButtonB("trace");
-    controlPanel.addButtonB("reset");
-    controlPanel.addBreak();
+        var lbl = document.createElement('span');
+        lbl.innerHTML = label;
+        lbl.className = bold ? 'control-panel-label-bold' : 'control-panel-label';
+        this.appendChild(lbl);
+    };
+    mainPanel.getElementValue = function(id) {
+        var elem = document.getElementById(id);
+        return elem.value;
+    };
+
+    // create the node panel which is the sub-control panel for nodes
+    nodePanel = document.createElement('div');
+    nodePanel.id = 'div-node-panel';
+    nodePanel.className = 'node-panel-view';
+    nodePanel.activated = false;
+    nodePanel.addBreak = mainPanel.addBreak;
+    nodePanel.addTextField = mainPanel.addTextField;
+    nodePanel.addButtonA = mainPanel.addButtonA;
+    nodePanel.addButtonB = mainPanel.addButtonB;
+    nodePanel.addLabel = mainPanel.addLabel;
+    nodePanel.getElementValue = mainPanel.getElementValue;
+
+    // create main panel buttons
+    mainPanel.addButtonB("new",buttonNew);
+    mainPanel.addTextField("flowchart-name",16);
+    mainPanel.addButtonB("save",buttonSave);
+    mainPanel.addButtonB("open in new tab",buttonOpenInNewTab);
+    mainPanel.addButtonB("close project",buttonCloseProject);
+    mainPanel.addBreak();
+    mainPanel.addButtonA("oper",buttonMakeOperationNode);
+    mainPanel.addButtonA("in");
+    mainPanel.addButtonA("out");
+    mainPanel.addButtonA("if");
+    mainPanel.addButtonA("while");
+    mainPanel.addButtonA("for");
+    mainPanel.addButtonA("call");
+    mainPanel.addButtonA("proc");
+    mainPanel.addBreak();
+    mainPanel.addButtonB("C++");
+    mainPanel.addButtonB("exec");
+    mainPanel.addButtonB("trace");
+    mainPanel.addButtonB("reset");
+    mainPanel.addBreak();
+
+    // add the two sub-panels to the control panel
+    controlPanel.appendChild(mainPanel);
+    controlPanel.appendChild(nodePanel);
 
     // create terminal content
     terminal = new Terminal(terminalView);
@@ -141,7 +175,7 @@ function buttonSave(e) {
 }
 
 function buttonOpenInNewTab(e) {
-
+    nodePanel.addBreak();
 }
 
 function buttonCloseProject(e) {
@@ -152,10 +186,12 @@ function buttonCloseProject(e) {
     // TODO: check save state
 
     context = new DrawingContext(canvas,canvasView,"program");
+    nodePanel.innerHTML = '';
 }
 
-function buttonMakeAssignmentNode(e) {
-    context.addNode('flowoperation','assign'); //test
+function buttonMakeOperationNode(e) {
+    // add an operation node to the context
+    context.addNode('flowoperation',DEFAULT_OPERATION);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

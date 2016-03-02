@@ -319,6 +319,15 @@ function DrawingContext(canvas,canvasView,programName) {
         - istoggled: called to ask if a visual is toggled [optional]
 */
 
+// Visual - prototype for visual objects; here we implement things that are the
+// same across all visuals
+Visual = {
+    setLabel: function(text) {
+        this.label = text;
+
+    }
+};
+
 // FlowBlockVisual - represents the visual component of a block of program flow
 // diagram elements rendered on the screen
 function FlowBlockVisual(label,block) {
@@ -342,16 +351,16 @@ function FlowBlockVisual(label,block) {
         ctx.lineWidth = 1.0;
         ctx.stroke();
         ctx.restore();
-        if (label != "") {
+        if (this.label != "") {
             if (!iconified) {
                 // draw label in upper-left corner; we must position the text at
                 // least half the font height down from the top; since the visual
                 // is uniconified, then draw the label out of the way
-                ctx.drawText(label,-0.99,-0.925,2.0,0.15);
+                ctx.drawText(this.label,-0.99,-0.925,2.0,0.15);
             }
             else {
                 // the visual is small so draw text over the visual's entire surface
-                ctx.drawText(label,0.0,0.0,2.0,1.0,true);
+                ctx.drawText(this.label,0.0,0.0,2.0,1.0,true);
                 ctx.globalAlpha = 0.5; // make sub-visuals a little lighter
             }
         }
@@ -575,6 +584,7 @@ function FlowBlockVisual(label,block) {
     // Public interface
     ////////////////////////////////////////////////////////////////////////////
 
+    this.label = label;
     this.draw = draw;
     this.getHeight = getHeight;
     this.setHeightChangeCallback = setHeightChangeCallback;
@@ -620,10 +630,10 @@ function FlowOperationVisual(label,block) {
         ctx.lineWidth = 1.0;
         ctx.stroke();
         ctx.restore();
-        if (label != "") {
+        if (this.label != "") {
             // draw label in center: maxWidth should be the width of the polygon
             // drawn above; fontHeight should be half the height of the polygon
-            ctx.drawText(label,0,0,1.1,0.5,true);
+            ctx.drawText(this.label,0,0,1.1,0.5,true);
         }
     }
 
@@ -668,6 +678,7 @@ function FlowOperationVisual(label,block) {
     // Public interface
     ////////////////////////////////////////////////////////////////////////////
 
+    this.label = label;
     this.draw = draw;
     this.ontoggle = ontoggle;
     this.getHeight = getHeight;
@@ -682,3 +693,7 @@ function FlowOperationVisual(label,block) {
 
     logic = new FlowOperationLogic(this,block);
 }
+
+// add prototypes
+FlowBlockVisual.prototype = Visual;
+FlowOperationVisual.prototype = Visual;

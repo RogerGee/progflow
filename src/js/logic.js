@@ -1,5 +1,8 @@
 // logic.js - progflow
 
+// constants
+const DEFAULT_OPERATION = 'nop';
+
 // FlowBlockLogic - logic handling for flowblock visuals
 function FlowBlockLogic(visual,block) {
     var locals = {}; // local variables
@@ -64,13 +67,31 @@ function FlowBlockLogic(visual,block) {
 
 // FlowOperationLogic - logic handling for flow-operation visuals
 function FlowOperationLogic(visual,block) {
+    var expr = DEFAULT_OPERATION; // the expression the operation node will execute
 
     ////////////////////////////////////////////////////////////////////////////
     // Functions
     ////////////////////////////////////////////////////////////////////////////
 
+    // ontoggle() - invoked when the visual in front of the logic is toggled
+    // by the user (i.e. selected)
     function ontoggle(state) {
+        if (!state) {
+            // reset
+            nodePanel.innerHTML = '';
+            return;
+        }
 
+        // set up HTML view for editing the expression
+        nodePanel.addLabel("Edit Operation:",true);
+        nodePanel.addBreak(false);
+        nodePanel.addLabel("Expression:");
+        nodePanel.addTextField('flow-operation-entry',1024,expr);
+        nodePanel.addBreak(false);
+        nodePanel.addButtonB('submit', function(){
+            expr = nodePanel.getElementValue('flow-operation-entry');
+            visual.setLabel(expr);
+        });
     }
 
     ////////////////////////////////////////////////////////////////////////////
