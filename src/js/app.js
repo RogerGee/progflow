@@ -1,6 +1,7 @@
 // app.js - progflow
 
 // globals
+var mainPanel;
 var nodePanel;
 var terminal;
 var context;
@@ -15,7 +16,7 @@ function initPage() {
     var controlPanel = document.getElementById('div-control-panel');
     var terminalView = document.getElementById('div-terminal-view');
     var canvasView = document.getElementById('div-canvas-view');
-    var mainPanel = document.createElement('div');
+    mainPanel = document.createElement('div');
     mainPanel.id = 'div-main-panel';
     mainPanel.className = 'div-main-panel';
 
@@ -100,8 +101,8 @@ function initPage() {
     mainPanel.addButtonA("if");
     mainPanel.addButtonA("while");
     mainPanel.addButtonA("for");
-    mainPanel.addButtonA("call");
-    mainPanel.addButtonA("proc");
+    mainPanel.addButtonA("ret");
+    mainPanel.addButtonA("proc",buttonMakeProcNode);
     mainPanel.addBreak();
     mainPanel.addButtonB("C++");
     mainPanel.addButtonB("exec");
@@ -117,13 +118,6 @@ function initPage() {
     terminal = new Terminal(terminalView);
     terminal.addLine(PROGNAME + " " + VERSION);
     terminal.addLine(AGENTINFO);
-
-    //test
-    var f = function(s) {
-        context.addBlock(s);
-        terminal.inputMode(f);
-    };
-    terminal.inputMode(f);
 
     // create canvas and render context
     var canvas = document.createElement("canvas");
@@ -157,7 +151,7 @@ function buttonNew(e) {
     var canvasView = document.getElementById("div-canvas-view");
 
     // grab the name of the new project from the box
-    var name = document.getElementById("flowchart-name").value;
+    var name = mainPanel.getElementValue("flowchart-name");
     if (name == "") {
         alert("Please specify a project name in the input field at left.");
         return;
@@ -166,6 +160,7 @@ function buttonNew(e) {
     // TODO: check save state
 
     context = new DrawingContext(canvas,canvasView,name);
+    context.drawScreen();
 }
 
 function buttonSave(e) {
@@ -175,7 +170,7 @@ function buttonSave(e) {
 }
 
 function buttonOpenInNewTab(e) {
-    nodePanel.addBreak();
+
 }
 
 function buttonCloseProject(e) {
@@ -192,6 +187,11 @@ function buttonCloseProject(e) {
 function buttonMakeOperationNode(e) {
     // add an operation node to the context
     context.addNode('flowoperation',DEFAULT_OPERATION);
+}
+
+function buttonMakeProcNode(e) {
+    // add a procedure node whose name is unique
+
 }
 
 ////////////////////////////////////////////////////////////////////////////////

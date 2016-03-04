@@ -187,7 +187,6 @@ function DrawingContext(canvas,canvasView,programName) {
     function addBlock(label) {
         var element = new FlowBlockVisual(label); // has no parent logic to inherit
         element.setHeightChangeCallback(resizeCanvas);
-        element.addChild(new FlowOperationVisual("hi there")); //test
         topBlock.addChild(element);
         drawScreen();
         return element;
@@ -222,7 +221,7 @@ function DrawingContext(canvas,canvasView,programName) {
 
     // addNode() - creates and adds a child visual to the current block; the
     // current block must not be the top block
-    function addNode(kind,label) {
+    function addNode(kind,label,param) {
         var node = null;
 
         // must not be in top block scope
@@ -233,10 +232,10 @@ function DrawingContext(canvas,canvasView,programName) {
         // logic object;
         kind = kind.toLowerCase();
         if (kind == "flowblock") {
-            node = new FlowBlockVisual(label,currentBlock);
+            node = new FlowBlockVisual(label,currentBlock,param);
         }
         else if (kind == "flowoperation") {
-            node = new FlowOperationVisual(label,currentBlock);
+            node = new FlowOperationVisual(label,currentBlock,param);
         }
 
         if (node != null) {
@@ -299,6 +298,7 @@ function DrawingContext(canvas,canvasView,programName) {
 
     topBlock.setHeightChangeCallback(resizeCanvas);
     topBlock.setIcon(false);
+    addBlock("main");
     resizeCanvas();
 }
 
@@ -318,15 +318,6 @@ function DrawingContext(canvas,canvasView,programName) {
         - ontoggle: called when a click event occurred on the visual [optional]
         - istoggled: called to ask if a visual is toggled [optional]
 */
-
-// Visual - prototype for visual objects; here we implement things that are the
-// same across all visuals
-Visual = {
-    setLabel: function(text) {
-        this.label = text;
-
-    }
-};
 
 // FlowBlockVisual - represents the visual component of a block of program flow
 // diagram elements rendered on the screen
@@ -351,16 +342,16 @@ function FlowBlockVisual(label,block) {
         ctx.lineWidth = 1.0;
         ctx.stroke();
         ctx.restore();
-        if (this.label != "") {
+        if (label != "") {
             if (!iconified) {
                 // draw label in upper-left corner; we must position the text at
                 // least half the font height down from the top; since the visual
                 // is uniconified, then draw the label out of the way
-                ctx.drawText(this.label,-0.99,-0.925,2.0,0.15);
+                ctx.drawText(label,-0.99,-0.925,2.0,0.15);
             }
             else {
                 // the visual is small so draw text over the visual's entire surface
-                ctx.drawText(this.label,0.0,0.0,2.0,1.0,true);
+                ctx.drawText(label,0.0,0.0,2.0,1.0,true);
                 ctx.globalAlpha = 0.5; // make sub-visuals a little lighter
             }
         }
@@ -380,7 +371,7 @@ function FlowBlockVisual(label,block) {
             // (that will be the default height for a child element)
             ctx.translate(0,ty);
             ctx.translate(0,hh-ONE_THIRD);
-            ctx.scale(1,1-VISUAL_PADDING/hh);
+            ctx.scale(1-VISUAL_PADDING/hh,1-VISUAL_PADDING/hh);
             ctx.translate(0,-hh+ONE_THIRD);
             ctx.scale(ONE_THIRD,ONE_THIRD);
 
@@ -580,11 +571,18 @@ function FlowBlockVisual(label,block) {
         }
     }
 
+    // forEachChild() - execute a callback for each child element
+    function forEachChild(callback) {
+        for (var obj of children) {
+            if (!callback(obj))
+                break;
+        }
+    }
+
     ////////////////////////////////////////////////////////////////////////////
     // Public interface
     ////////////////////////////////////////////////////////////////////////////
 
-    this.label = label;
     this.draw = draw;
     this.getHeight = getHeight;
     this.setHeightChangeCallback = setHeightChangeCallback;
@@ -598,12 +596,15 @@ function FlowBlockVisual(label,block) {
     this.clearToggleExcept = clearToggleExcept;
     this.onclick = onclick;
     this.type = 'block';
+    this.getLabel = function(){return label;};
+    this.setLabel = function(text){label = text;};
+    this.forEachChild = forEachChild;
 
     ////////////////////////////////////////////////////////////////////////////
     // Initialization
     ////////////////////////////////////////////////////////////////////////////
 
-    logic = new FlowBlockLogic(this,block);
+    logic = new FlowBlockLogic(this);
 }
 
 // FlowOperationVisual - represents a visual element representing a procedural
@@ -630,10 +631,10 @@ function FlowOperationVisual(label,block) {
         ctx.lineWidth = 1.0;
         ctx.stroke();
         ctx.restore();
-        if (this.label != "") {
+        if (label != "") {
             // draw label in center: maxWidth should be the width of the polygon
             // drawn above; fontHeight should be half the height of the polygon
-            ctx.drawText(this.label,0,0,1.1,0.5,true);
+            ctx.drawText(label,0,0,getBounds('right') - getBounds('left'),0.5,true);
         }
     }
 
@@ -643,7 +644,7 @@ function FlowOperationVisual(label,block) {
         logic.ontoggle(selected);
     }
 
-    // getHeight() - every proc. element will use 2 units (-1 to 1)
+    // getHeight() - every operation element will use 2 units (-1 to 1)
     function getHeight() {
         return 2;
     }
@@ -655,11 +656,11 @@ function FlowOperationVisual(label,block) {
         if (kind == "lower" || kind == "arrowLower")
             return 0.5;
         if (kind == "left")
-            return -0.55;
+            return -1;
         if (kind == "right")
-            return 0.55;
+            return 1;
         if (typeof kind == "undefined")
-            return [-0.55,-0.5,0.55,-0.5,0.55,0.5,-0.55,0.5];
+            return [-1,-0.5,1,-0.5,1,0.5,-1,0.5];
         return null;
     }
 
@@ -678,22 +679,20 @@ function FlowOperationVisual(label,block) {
     // Public interface
     ////////////////////////////////////////////////////////////////////////////
 
-    this.label = label;
     this.draw = draw;
     this.ontoggle = ontoggle;
     this.getHeight = getHeight;
     this.getBounds = getBounds;
     this.onclick = onclick;
     this.isToggled = function(){return selected;};
+    this.getLogic = function(){return logic;};
+    this.getLabel = function(){return label;};
+    this.setLabel = function(text){label = text;};
     this.type = 'operation';
 
     ////////////////////////////////////////////////////////////////////////////
     // Initialization
     ////////////////////////////////////////////////////////////////////////////
 
-    logic = new FlowOperationLogic(this,block);
+    logic = new FlowOperationLogic(this);
 }
-
-// add prototypes
-FlowBlockVisual.prototype = Visual;
-FlowOperationVisual.prototype = Visual;
