@@ -150,7 +150,7 @@ function FlowBlockLogic(visual,block,param) {
 // FlowOperationLogic - logic handling for flow-operation visuals; the visual operates
 // either in 'float' or 'int' mode when evaluating an operation
 function FlowOperationLogic(visual,block,mode) {
-    var expr = new ExpressionParser(""); // the expression the operation node will execute
+    var expr = new ExpressionParser("",false,true); // the expression the operation node will execute
 
     ////////////////////////////////////////////////////////////////////////////
     // Functions
@@ -173,8 +173,13 @@ function FlowOperationLogic(visual,block,mode) {
         nodePanel.addBreak(false);
         nodePanel.addButtonB('submit', function(){
             var newexprStr = nodePanel.getElementValue('flow-operation-entry');
-            var newexpr = new ExpressionParser(newexprStr);
+            var newexpr = new ExpressionParser(newexprStr,false,true);
             if (!newexpr.error()) {
+                if (!newexpr.containsNode('assign-expr')) {
+                    terminal.addLine("operation block: warning: "
+                        + newexprStr + ": statement has no effect");
+                }
+
                 expr = newexpr;
                 syncLabel();
 
@@ -183,7 +188,7 @@ function FlowOperationLogic(visual,block,mode) {
                 context.drawScreen();
             }
             else {
-                var msg = "operation block: parse error";
+                var msg = "operation block: parse error: " + newexprStr;
                 var parseError = newexpr.errorMsg();
                 if (parseError != "")
                     msg += ": " + parseError;
@@ -233,70 +238,87 @@ const EXPR_REGEX = /([a-zA-Z_][a-zA-Z_0-9]*)|([0-9]*(?:\.?[0-9]+))|(\(|\)|\+|-|\
 AssignmentExpressionNode = function(left,right) {
     this.left = left;
     this.right = right;
+    this.kind = 'assign-expr';
 };
 LogicORExpressionNode = function(left,right) {
     this.left = left;
     this.right = right;
+    this.kind = 'or-expr';
 };
 LogicANDExpressionNode = function(left,right) {
     this.left = left;
     this.right = right;
+    this.kind = 'and-expr';
 };
 EqualExpressionNode = function(left,right) {
     this.left = left;
     this.right = right;
+    this.kind = 'eq-expr';
 };
 NotEqualExpressionNode = function(left,right) {
     this.left = left;
     this.right = right;
+    this.kind = 'not-eq-expr';
 };
 LessThanExpressionNode = function(left,right) {
     this.left = left;
     this.right = right;
+    this.kind = 'less-expr';
 };
 GreaterThanExpressionNode = function(left,right) {
     this.left = left;
     this.right = right;
+    this.kind = 'greater-expr';
 };
 LessThanEqualExpressionNode = function(left,right) {
     this.left = left;
     this.right = right;
+    this.kind = 'less-eq-expr';
 };
 GreaterThanEqualExpressionNode = function(left,right) {
     this.left = left;
     this.right = right;
+    this.kind = 'greater-eq-expr';
 };
 AddExpressionNode = function(left,right) {
     this.left = left;
     this.right = right;
+    this.kind = 'add-expr';
 };
 SubtractExpressionNode = function(left,right) {
     this.left = left;
     this.right = right;
+    this.kind = 'subtract-expr';
 };
 MultiplyExpressionNode = function(left,right) {
     this.left = left;
     this.right = right;
+    this.kind = 'multiply-expr';
 };
 DivideExpressionNode = function(left,right) {
     this.left = left;
     this.right = right;
+    this.kind = 'divide-expr';
 };
 ExponentExpressionNode = function(left,right) {
     this.left = left;
     this.right = right;
+    this.kind = 'exponent-expr';
 };
 NegateExpressionNode = function(left,right) {
     this.left = left;
     this.right = right;
+    this.kind = 'negate-expr';
 };
 NotExpressionNode = function(left,right) {
     this.left = left;
     this.right = right;
+    this.kind = 'not-expr';
 };
 FunctionCallExpressionNode = function(left,right) {
     this.left = left;
     this.right = right;
+    this.kind = 'function-call';
 };
 IdentifierNode = function(tok) {
     this.id = tok.text;
@@ -451,7 +473,7 @@ NumberNode.prototype.toString = function() {
     return String(this.value);
 };
 
-function ExpressionParser(expr) {
+function ExpressionParser(expr,allowBoolean,allowAssignment) {
     var toks = [];
     var iter = 0;
     var parseTree = {empty: true};
@@ -496,7 +518,10 @@ function ExpressionParser(expr) {
         if (toks.length > 0) {
             parseTree.empty = false;
             try {
-                parseTree.root = assignmentExpression();
+                parseTree.root = expression();
+                if (iter < toks.length) {
+                    throw "stray token could not be matched: '" + toks[iter].text + "'";
+                }
             } catch (errorMessage) {
                 errorMsg = errorMessage;
             }
@@ -520,6 +545,9 @@ function ExpressionParser(expr) {
         return false;
     }
 
+    function expression(node) {
+        return assignmentExpression(node);
+    }
     function assignmentExpression(node) {
         var result = orExpression(node);
         result = assignmentExpressionOpt(result);
@@ -527,6 +555,15 @@ function ExpressionParser(expr) {
     }
     function assignmentExpressionOpt(node) {
         if (matchToken('symbol','=')) {
+            if (!allowAssignment) {
+                throw "assignment-operator '=' is not allowed";
+            }
+
+            // do some semantic checking
+            if (node.kind != 'identifier') {
+                throw "left-hand side of assign-expr is not assignable";
+            }
+
             // force a right-most evaluation
             return new AssignmentExpressionNode( node,assignmentExpression() );
         }
@@ -539,8 +576,13 @@ function ExpressionParser(expr) {
         return result;
     }
     function orExpressionOpt(node) {
-        if (matchToken('symbol','or'))
+        if (matchToken('symbol','or')) {
+            if (!allowBoolean) {
+                throw "or-operator 'or' is not allowed";
+            }
+
             return orExpressionOpt( new LogicORExpressionNode(node,andExpression()) );
+        }
 
         return node;
     }
@@ -550,8 +592,13 @@ function ExpressionParser(expr) {
         return result;
     }
     function andExpressionOpt(node) {
-        if (matchToken('symbol','and'))
+        if (matchToken('symbol','and')) {
+            if (!allowBoolean) {
+                throw "and-operator 'and' is not allowed";
+            }
+
             return andExpressionOpt( new LogicANDExpressionNode(node,equalityExpression()) );
+        }
 
         return node;
     }
@@ -561,10 +608,20 @@ function ExpressionParser(expr) {
         return result;
     }
     function equalityExpressionOpt(node) {
-        if (matchToken('symbol','=='))
+        if (matchToken('symbol','==')) {
+            if (!allowBoolean) {
+                throw "equality-operator '==' is not allowed";
+            }
+
             return equalityExpressionOpt( new EqualExpressionNode(node,relationalExpression()) );
-        else if (matchToken('symbol','<>'))
+        }
+        else if (matchToken('symbol','<>')) {
+            if (!allowBoolean) {
+                throw "inequality-operator '<>' is not allowed";
+            }
+
             return equalityExpressionOpt( new NotEqualExpressionNode(node,relationalExpression()) );
+        }
 
         return node;
     }
@@ -574,14 +631,34 @@ function ExpressionParser(expr) {
         return result;
     }
     function relationalExpressionOpt(node) {
-        if (matchToken('symbol','<'))
+        if (matchToken('symbol','<')) {
+            if (!allowBoolean) {
+                throw "relational-operator '<' is not allowed";
+            }
+
             return relationalExpressionOpt( new LessThanExpressionNode(node,additiveExpression()) );
-        else if (matchToken('symbol','>'))
+        }
+        else if (matchToken('symbol','>')) {
+            if (!allowBoolean) {
+                throw "relational-operator '>' is not allowed";
+            }
+
             return relationalExpressionOpt( new GreaterThanExpressionNode(node,additiveExpression()) );
-        else if (matchToken('symbol','<='))
+        }
+        else if (matchToken('symbol','<=')) {
+            if (!allowBoolean) {
+                throw "relational-operator '<=' is not allowed";
+            }
+
             return relationalExpressionOpt( new LessThanEqualExpressionNode(node,additiveExpression()) );
-        else if (matchToken('symbol','>='))
+        }
+        else if (matchToken('symbol','>=')) {
+            if (!allowBoolean) {
+                throw "relational-operator '>=' is not allowed";
+            }
+
             return relationalExpressionOpt( new GreaterThanEqualExpressionNode(node,additiveExpression()) );
+        }
 
         return node;
     }
@@ -656,23 +733,45 @@ function ExpressionParser(expr) {
 
         // parenthesized expression
         if (matchToken('symbol','(')) {
-            var newnode = assignmentExpression();
+            var newnode = expression();
             if (!matchToken('symbol',')')) {
                 throw "expected matching ')' for parenthesized expression";
             }
             return newnode;
         }
 
-        throw "cannot understand token: " + JSON.stringify(toks[iter]);
+        throw "cannot understand token: '" + toks[iter].text + "'";
     }
 
     function evaluate(block) {
+        if (typeof parseTree.root == 'undefined')
+            throw "the expression was malformed";
 
+        return parseTree.root.eval(block);
+    }
+
+    // findNode() - finds a node in the parse tree with the specified kind; this
+    // function only checks for existence
+    function containsNode(exprKind) {
+        function recall(node) {
+            if (node.kind == exprKind)
+                return true;
+            if (typeof node.left == 'undefined' || typeof node.right == 'undefined')
+                return false;
+            return recall(node.left) || recall(node.right);
+        }
+
+        return recall(parseTree.root);
     }
 
     ////////////////////////////////////////////////////////////////////////////
     // Initialization
     ////////////////////////////////////////////////////////////////////////////
+
+    if (typeof allowBoolean == 'undefined')
+        allowBoolean = true;
+    if (typeof allowAssignment == 'undefined')
+        allowAssignment = true;
 
     tokenize();
     parse();
@@ -682,4 +781,5 @@ function ExpressionParser(expr) {
     this.error = function(){return errorMsg!=null;};
     this.errorMsg = function(){return errorMsg;};
     this.expr = function(){return expr;};
+    this.containsNode = containsNode;
 }
