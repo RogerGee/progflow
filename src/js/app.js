@@ -96,8 +96,8 @@ function initPage() {
     mainPanel.addButtonB("close project",buttonCloseProject);
     mainPanel.addBreak();
     mainPanel.addButtonA("oper",buttonMakeOperationNode);
-    mainPanel.addButtonA("in");
-    mainPanel.addButtonA("out");
+    mainPanel.addButtonA("in",buttonMakeInNode);
+    mainPanel.addButtonA("out",buttonMakeOutNode);
     mainPanel.addButtonA("if");
     mainPanel.addButtonA("while");
     mainPanel.addButtonA("for");
@@ -105,7 +105,8 @@ function initPage() {
     mainPanel.addButtonA("proc",buttonMakeProcNode);
     mainPanel.addBreak();
     mainPanel.addButtonB("C++");
-    mainPanel.addButtonB("exec");
+    mainPanel.addButtonB("Python");
+    mainPanel.addButtonB("exec",buttonExec);
     mainPanel.addButtonB("trace");
     mainPanel.addButtonB("reset");
     mainPanel.addBreak();
@@ -189,9 +190,23 @@ function buttonMakeOperationNode(e) {
     context.addNode('flowoperation',DEFAULT_OPERATION);
 }
 
+function buttonMakeInNode(e) {
+    context.addNode('flowin',"");
+}
+
+function buttonMakeOutNode(e) {
+    context.addNode('flowout',"");
+}
+
 function buttonMakeProcNode(e) {
     // add a procedure node whose name is unique
 
+}
+
+function buttonExec(e) {
+    var logic = context.topLevelLogic();
+
+    logic.exec();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

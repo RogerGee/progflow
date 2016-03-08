@@ -5,7 +5,7 @@ const DEFAULT_OPERATION = 'nop';
 
 // FlowBlockLogic - logic handling for flowblock visuals; a block is a collection
 // of statements that may or may not return a value
-function FlowBlockLogic(visual,block,param) {
+function FlowBlockLogic(visual,block) {
     var locals = {}; // local variables
     var stack = []; // stack of local variables lists
 
@@ -104,33 +104,54 @@ function FlowBlockLogic(visual,block,param) {
 
     }
 
-    // exec() - performs the execution step of the simulation
+    // exec() - executes each of the child nodes in a context that provides
+    // (optionally) the specified arguments; the 'next' callback controls what
+    // happens after
     function exec(args) {
-        var retval = null;
+        var it = visual.newChildIter();
 
         // to simulate recursion we must reset and save our local variables
         // list each time we are called
         stack.push(locals);
         locals = {};
 
-        // TODO: load arguments
+        // create 'args' if it does not exist (it shouldn't for an initial call)
+        if (typeof args == 'undefined') {
+            args = {
+                next: function(){} // does nothing
+            }
+        }
 
-        visual.forEachChild(function(child){
-            var logic = child.getLogic(); // get logic node via visual
-            logic.exec(this); // pass the child node a reference to our block
+        // load parameters to procedure call into local variable list
+        if (typeof args.params != 'undefined') {
 
-            // if some child node reports back a return value then we keep it
-            // and consider it to terminate our procedure
-            if (typeof logic.retval != 'undefined') {
-                retval = logic.retval;
-                return false;
+        }
+
+        var nx = function() {
+            var child = visual.nextChild(it);
+            if (child == null) {
+                // we have executed every single child in the simulation; call
+                // the 'next' callback to continue
+                args.next();
+                return;
             }
 
-            return true;
-        });
+            var logic = child.getLogic(); // get logic node via visual
+            var ret = logic.exec(newargs); // pass the child node a reference to ourself
+
+            // if the return value is defined, call the 'next' function to continue; a
+            // return structure should therefore not call its next callback
+            if (typeof ret != 'undefined')
+                args.next(ret);
+
+            return ret;
+        };
+        var newargs = {
+            next: nx
+        };
+        nx();
 
         locals = stack.pop();
-        return retval;
     }
 
     ////////////////////////////////////////////////////////////////////////////
@@ -142,14 +163,14 @@ function FlowBlockLogic(visual,block,param) {
     this.lookupVariable = lookupVariable;
     this.updateVariable = updateVariable;
     this.updateCreateVariable = updateCreateVariable;
+    this.findBlock = findBlock;
     this.getName = visual.getLabel;
     this.ontoggle = ontoggle;
     this.exec = exec;
 }
 
-// FlowOperationLogic - logic handling for flow-operation visuals; the visual operates
-// either in 'float' or 'int' mode when evaluating an operation
-function FlowOperationLogic(visual,block,mode) {
+// FlowOperationLogic - logic handling for flow-operation visuals
+function FlowOperationLogic(visual,block) {
     var expr = new ExpressionParser("",false,true); // the expression the operation node will execute
 
     ////////////////////////////////////////////////////////////////////////////
@@ -192,7 +213,7 @@ function FlowOperationLogic(visual,block,mode) {
                 var parseError = newexpr.errorMsg();
                 if (parseError != "")
                     msg += ": " + parseError;
-                terminal.addLine(msg);
+                terminal.addLine(msg,'error-line');
             }
         });
     }
@@ -205,23 +226,187 @@ function FlowOperationLogic(visual,block,mode) {
     }
 
     // exec() - perform execution step within the simulation
-    function exec() {
-
+    function exec(args) {
+        expr.evaluate(block);
+        args.next();
     }
-
-    ////////////////////////////////////////////////////////////////////////////
-    // Public interface
-    ////////////////////////////////////////////////////////////////////////////
-
-    this.ontoggle = ontoggle;
-    this.exec = exec;
 
     ////////////////////////////////////////////////////////////////////////////
     // Initialization
     ////////////////////////////////////////////////////////////////////////////
 
+    this.ontoggle = ontoggle;
+    this.exec = exec;
     syncLabel();
 }
+
+////////////////////////////////////////////////////////////////////////////////
+// FlowInOutLogic - logic handling for input/output visuals
+////////////////////////////////////////////////////////////////////////////////
+
+function FlowInOutLogic(visual,block,param) {
+    var formatString = new FormatString("");
+
+    ////////////////////////////////////////////////////////////////////////////
+    // Functions
+    ////////////////////////////////////////////////////////////////////////////
+
+    function ontoggle(state) {
+        if (!state) {
+            // reset
+            nodePanel.innerHTML = '';
+            return;
+        }
+
+        nodePanel.addLabel("Edit IO Statement:",true);
+        nodePanel.addBreak(false);
+        nodePanel.addLabel("Formatted String:");
+        nodePanel.addTextField('flow-io-entry',1024,formatString.fs);
+        nodePanel.addBreak(false);
+        nodePanel.addButtonB('submit',function(){
+            var newstr = nodePanel.getElementValue('flow-io-entry');
+            formatString = new FormatString(newstr);
+            visual.setLabel(newstr);
+            visual.ontoggle();
+            context.drawScreen();
+        });
+    }
+
+    function exec(args) {
+        if (param == 'in') {
+            formatString.input(block,args.next);
+        }
+        else {
+            formatString.output(block);
+            args.next();
+        }
+    }
+
+    ////////////////////////////////////////////////////////////////////////////
+    // Initialization
+    ////////////////////////////////////////////////////////////////////////////
+
+    this.ontoggle = ontoggle;
+    this.exec = exec;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// FormatString
+////////////////////////////////////////////////////////////////////////////////
+
+const SPACESEP_REGEX = /[^\s]+/g;
+const FORMAT_TOKEN_REGEX = /%[a-zA-Z_][a-zA-Z_0-9]*/g;
+
+function FormatString(fs) {
+    this.fs = fs;
+}
+
+FormatString.prototype.output = function(block) {
+    var output = "", last = 0;
+    var errors = [];
+    FORMAT_TOKEN_REGEX.lastIndex = 0;
+    while (true) {
+        var m = FORMAT_TOKEN_REGEX.exec(this.fs);
+        if (!m)
+            break;
+        output += this.fs.substring(last,m.index);
+
+        // grab the variable name by stripping off the leading '%' sign; then
+        // lookup the variable's value
+        var vname = m[0].substring(1);
+        var value = block.lookupVariable(vname);
+        if (value == null) {
+            output += "'?'";
+            errors.push("variable '" + vname + "' is undefined");
+        }
+        else {
+            output += String(value);
+        }
+
+        last = m.index + m[0].length;
+    }
+    output += this.fs.substring(last,this.fs.length);
+
+    for (var e of errors)
+        terminal.addLine("output block: warning: " + e,'warning-line');
+    terminal.addLine(output);
+};
+
+FormatString.prototype.input = function(block,next) {
+    var things = [], last = 0;
+    FORMAT_TOKEN_REGEX.lastIndex = 0;
+    this.errors = [];
+    while (true) {
+        var m = FORMAT_TOKEN_REGEX.exec(this.fs);
+        if (!m)
+            break;
+        things.push({s:this.fs.substring(last,m.index)}); // prompt text
+        things.push({v:m[0].substring(1)}); // variable
+        last = m.index + m[0].length;
+    }
+    var final = this.fs.substring(last,this.fs.length);
+    if (final != "")
+        things.push({s:final});
+
+    var cb = function(){
+        this.iter = 0;
+        this.things = things;
+        this.extra = [];
+    };
+    cb.prototype.next = function() {
+        while (this.iter < this.things.length) {
+            if (typeof this.things[this.iter].s != 'undefined') {
+                var ln = terminal.newLine();
+                ln.addText(this.things[this.iter++].s);
+                ln.finish(false);
+            }
+            else if (typeof this.things[this.iter].v != 'undefined') {
+                var vname = this.things[this.iter++].v;
+                var done = this.iter >= this.things.length;
+                if (this.extra.length > 0) {
+                    // use tokens that were previously read
+                    block.updateCreateVariable(vname,Number(this.extra[0]));
+                    this.extra.splice(0,1); // consume token
+                    if (done)
+                        next();
+                    else
+                        this.next();
+                }
+                else {
+                    var obj = this;
+                    terminal.inputMode(function(ttext){
+                        var ts = ttext.match(SPACESEP_REGEX);
+                        if (!ts) {
+                            // exception!
+                            terminal.addLine("input block: input sequence was empty",'error-line');
+                            return;
+                        }
+
+                        // update variable value (or create if not seen); save
+                        // any extra tokens for a future operation
+                        block.updateCreateVariable(vname,Number(ts[0]));
+                        obj.extra = obj.extra.concat(ts.slice(1));
+
+                        // if we are done with the input operation, call the
+                        // 'next' callback; otherwise make a recursive call
+                        if (done)
+                            next();
+                        else
+                            obj.next();
+                    });
+                }
+
+                // the callback will handle the rest of the operation
+                return;
+            }
+            else
+                this.iter += 1;
+        }
+    };
+
+    var o = new cb();
+    o.next();
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 // ExpressionParser - produces a syntax tree of the simple expression language
@@ -411,7 +596,8 @@ IdentifierNode.prototype.eval = function(block) {
     return v;
 };
 IdentifierNode.prototype.lval = function(block) {
-    return function(val) { block.updateCreateVariable(this.id,val); };
+    var id = this.id;
+    return function(val) { block.updateCreateVariable(id,val); };
 };
 NumberNode.prototype.eval = function(block) {
     return this.value; // that was easy

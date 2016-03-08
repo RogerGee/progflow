@@ -4,8 +4,8 @@
     font-family: Ubuntu Mono, Menlo, Consolas, monospace;
     background-color: #111;
     color: #FFF;
-    font-size: 12px;
     height: 100%;
+    overflow: auto;
 }
 
 .terminal-cursor {
@@ -29,4 +29,14 @@
 .terminal-input {
     color: red;
     font-weight: bold;
+}
+
+.error-line {
+    color: red;
+    font-style: italic;
+}
+
+.warning-line {
+    color: green;
+    font-style: italic;
 }

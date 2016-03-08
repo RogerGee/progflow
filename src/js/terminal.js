@@ -1,11 +1,13 @@
 // terminal.js - progflow
 
 function Terminal(parentNode) {
-    function TerminalLine() {
+    function TerminalLine(className) {
         var text = '';
         var curnode = document.createTextNode('');
         var span = document.createElement("span");
         span.appendChild(curnode);
+        if (typeof className != 'undefined')
+            span.className = className;
 
         this.addText = function(textParam) {
             text += textParam;
@@ -35,9 +37,14 @@ function Terminal(parentNode) {
             span.appendChild(subspan);
         }
 
-        this.finish = function() {
+        this.finish = function(breakLine) {
+            if (typeof breakLine == 'undefined')
+                breakLine = true;
+
             termDiv.appendChild(span);
-            termDiv.appendChild(document.createElement("br"));
+            if (breakLine)
+                termDiv.appendChild(document.createElement("br"));
+            termDiv.scrollTop = termDiv.scrollHeight;
         }
     }
 
@@ -99,7 +106,7 @@ function Terminal(parentNode) {
         }
         else if (e.keyCode == KEYCODES.ENTER) {
             e.preventDefault();
-            imodeCb(cancelInput());
+            imodeCb(endInputMode());
         }
         else if (e.keyCode == KEYCODES.LEFT) {
             // move the cursor left one position (if possible)
@@ -171,16 +178,16 @@ function Terminal(parentNode) {
 
     // addLine() - add text to the terminal at the current position and seek
     // to a new line
-    function addLine(text) {
-        var line = new TerminalLine;
+    function addLine(text,className) {
+        var line = new TerminalLine(className);
         line.addText(text);
         line.finish();
     }
     this.addLine = addLine;
 
     // newLine() - creates a new TerminalLine object and returns it to the user
-    function newLine() {
-        var line = new TerminalLine;
+    function newLine(className) {
+        var line = new TerminalLine(className);
         return line;
     }
     this.newLine = newLine;
@@ -201,9 +208,21 @@ function Terminal(parentNode) {
 
         // add the input line span to the terminal screen
         termDiv.appendChild(ispan);
+        termDiv.scrollTop = termDiv.scrollHeight;
         parentNode.focus(); // set focus so user knows input is requested
     }
     this.inputMode = inputMode;
+
+    // endInputMode() - return the input gathered from the terminal thus far and
+    // keep the input echoed in the terminal
+    function endInputMode() {
+        if (imode) {
+            imode = false;
+            termDiv.removeChild(ispan);
+            addLine(itext,'terminal-input');
+            return itext;
+        }
+    }
 
     // cancelInput() - cancels input mode (if on) and returns whatever input
     // the user has specified

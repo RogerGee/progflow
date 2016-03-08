@@ -9,7 +9,23 @@ const ARROW_HEAD_LENGTH = 0.025; // length of arrow head
 const ARROW_SHAFT_WIDTH = 0.001; // width of arrow shaft
 const DEFAULT_FONT = "monospace";
 
+function pnpoly(poly,x,y) {
+    var c = false, n = poly.length / 2;
+    for (var i = 0, j = n - 1;i < n;j = i++) {
+        var vxi = poly[i*2], vyi = poly[i*2+1],
+            vxj = poly[j*2], vyj = poly[j*2+1];
+
+        if ((vyi > y != vyj > y) && (x < (vxj-vxi)*(y-vyi)/(vyj-vyi)+vxi)) {
+            c = !c;
+        }
+    }
+    return c;
+}
+
+////////////////////////////////////////////////////////////////////////////////
 // DrawingContext - handles top-level drawing operations
+////////////////////////////////////////////////////////////////////////////////
+
 function DrawingContext(canvas,canvasView,programName) {
     var ctx = canvas.getContext("2d"); // HTML5 Canvas context
     // block for all program elements
@@ -216,7 +232,9 @@ function DrawingContext(canvas,canvasView,programName) {
             currentBlock = blockStack.pop();
             currentBlock.setIcon(false);
             resizeCanvas(); // this redraws the screen
+            return true;
         }
+        return false;
     }
 
     // addNode() - creates and adds a child visual to the current block; the
@@ -232,10 +250,16 @@ function DrawingContext(canvas,canvasView,programName) {
         // logic object;
         kind = kind.toLowerCase();
         if (kind == "flowblock") {
-            node = new FlowBlockVisual(label,currentBlock,param);
+            node = new FlowBlockVisual(label,currentBlock.getLogic(),param);
         }
         else if (kind == "flowoperation") {
-            node = new FlowOperationVisual(label,currentBlock,param);
+            node = new FlowOperationVisual(label,currentBlock.getLogic(),param);
+        }
+        else if (kind == "flowin") {
+            node = new FlowInOutVisual(label,currentBlock.getLogic(),"in");
+        }
+        else if (kind == "flowout") {
+            node = new FlowInOutVisual(label,currentBlock.getLogic(),"out");
         }
 
         if (node != null) {
@@ -277,8 +301,17 @@ function DrawingContext(canvas,canvasView,programName) {
         }
     }
 
+    // topLevelLogic() - gets the top-level logic object
+    function topLevelLogic() {
+        var lo = topBlock.getLogic();
+        var main = lo.findBlock('main');
+        if (main == null)
+            throw "'main' block wasn't found!";
+        return main;
+    }
+
     ////////////////////////////////////////////////////////////////////////////
-    // Public interface
+    // Initialization
     ////////////////////////////////////////////////////////////////////////////
 
     this.resizeCanvas = resizeCanvas;
@@ -287,15 +320,11 @@ function DrawingContext(canvas,canvasView,programName) {
     this.saveBlock = saveBlock;
     this.restoreBlock = restoreBlock;
     this.addNode = addNode;
+    this.topLevelLogic = topLevelLogic;
     ctx.drawPolygon = drawPolygon;
     ctx.drawArrow = drawArrow;
     ctx.drawText = drawText;
     canvas.onclick = onCanvasClick;
-
-    ////////////////////////////////////////////////////////////////////////////
-    // Initialization
-    ////////////////////////////////////////////////////////////////////////////
-
     topBlock.setHeightChangeCallback(resizeCanvas);
     topBlock.setIcon(false);
     addBlock("main");
@@ -319,8 +348,11 @@ function DrawingContext(canvas,canvasView,programName) {
         - istoggled: called to ask if a visual is toggled [optional]
 */
 
+////////////////////////////////////////////////////////////////////////////////
 // FlowBlockVisual - represents the visual component of a block of program flow
 // diagram elements rendered on the screen
+////////////////////////////////////////////////////////////////////////////////
+
 function FlowBlockVisual(label,block) {
     var children = []; // list of child drawables
     var iconified = true; // whether or not is iconified (i.e. made small)
@@ -401,7 +433,8 @@ function FlowBlockVisual(label,block) {
         // a visual may not define arrow bounds (meaning an arrow shouldn't be drawn)
         if (hy != null && ty != null) {
             // perform the same transformations that draw() does but with a different
-            // translation for the head and tail
+            // translation for the head and tail (this does not include the padding
+            // transformations)
             hy *= ONE_THIRD; hy += off2;
             ty *= ONE_THIRD; ty += off1;
 
@@ -415,12 +448,15 @@ function FlowBlockVisual(label,block) {
     function onclick(x,y) {
         // only select child elements if we are not iconified
         if (!iconified) {
-            // translate coordinates relative to the coordinates space for each child
-            var cx, cy;
+            // go through each of the children and see if they were clicked; make
+            // sure to transform the coordinate relative to each child's coord space
             var ty = -1+ONE_THIRD;
-            cx = x / ONE_THIRD; cy = (y-ty) / ONE_THIRD;
 
             for (var obj of children) {
+                var h = obj.getHeight() * ONE_THIRD, hh = h/2;
+                var cx = x/ONE_THIRD/(1-VISUAL_PADDING/hh);
+                var cy = (y - ty) / ONE_THIRD / (1-VISUAL_PADDING/hh);
+
                 // call 'onclick()' on the child element so it can bounds check itself
                 // and any children it might have
                 var result = obj.onclick(cx,cy);
@@ -428,9 +464,7 @@ function FlowBlockVisual(label,block) {
                     return result;
                 }
 
-                var amt = obj.getHeight() * ONE_THIRD;
-                ty += amt;
-                cy -= amt / ONE_THIRD;
+                ty += h;
             }
         }
 
@@ -579,8 +613,19 @@ function FlowBlockVisual(label,block) {
         }
     }
 
+    // nextChild() - grab a reference to the next child based on a user-supplied
+    // iterator; the iterator is an object with an 'iter' integer property
+    function nextChild(iter) {
+        if (iter.iter >= children.length) {
+            iter.iter = 0;
+            return null;
+        }
+
+        return children[iter.iter++];
+    }
+
     ////////////////////////////////////////////////////////////////////////////
-    // Public interface
+    // Initialization
     ////////////////////////////////////////////////////////////////////////////
 
     this.draw = draw;
@@ -599,16 +644,16 @@ function FlowBlockVisual(label,block) {
     this.getLabel = function(){return label;};
     this.setLabel = function(text){label = text;};
     this.forEachChild = forEachChild;
-
-    ////////////////////////////////////////////////////////////////////////////
-    // Initialization
-    ////////////////////////////////////////////////////////////////////////////
-
-    logic = new FlowBlockLogic(this);
+    this.nextChild = nextChild;
+    this.newChildIter = function(){return {iter:0}};
+    logic = new FlowBlockLogic(this,block);
 }
 
+////////////////////////////////////////////////////////////////////////////////
 // FlowOperationVisual - represents a visual element representing a procedural
 // operation in the program
+////////////////////////////////////////////////////////////////////////////////
+
 function FlowOperationVisual(label,block) {
     var selected = false;
     var logic;
@@ -676,7 +721,7 @@ function FlowOperationVisual(label,block) {
     }
 
     ////////////////////////////////////////////////////////////////////////////
-    // Public interface
+    // Initialization
     ////////////////////////////////////////////////////////////////////////////
 
     this.draw = draw;
@@ -689,10 +734,82 @@ function FlowOperationVisual(label,block) {
     this.getLabel = function(){return label;};
     this.setLabel = function(text){label = text;};
     this.type = 'operation';
+    logic = new FlowOperationLogic(this,block);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// FlowInOutVisual - represents a visual element that supplies either input or
+// output functionality
+////////////////////////////////////////////////////////////////////////////////
+
+function FlowInOutVisual(label,block,param) {
+    var selected = false;
+    var logic = new FlowInOutLogic(this,block,param);
+
+    ////////////////////////////////////////////////////////////////////////////
+    // Functions
+    ////////////////////////////////////////////////////////////////////////////
+
+    function draw(ctx) {
+        ctx.drawPolygon(getBounds());
+        ctx.save();
+        ctx.setTransform(1,0,0,1,0,0);
+        if (selected) {
+            ctx.fillStyle = SELECT_COLOR;
+            ctx.globalAlpha = SELECT_ALPHA;
+            ctx.fill();
+            ctx.globalAlpha = 1.0;
+        }
+        ctx.lineWidth = 1.0;
+        ctx.stroke();
+        ctx.restore();
+
+        var w = getBounds('right') - getBounds('left');
+        ctx.drawText(param,-.925,-0.3,w,0.25);
+        if (label != "")
+            ctx.drawText(label,0,0,w,0.5,true);
+    }
+
+    function ontoggle() {
+        selected = !selected;
+        logic.ontoggle(selected);
+    }
+
+    function onclick(x,y) {
+        // run pnpoly to see if the shape was clicked
+        return pnpoly(getBounds(),x,y) ? this : null;
+    }
+
+    function getHeight() {
+        return 2;
+    }
+
+    function getBounds(kind) {
+        if (kind == "upper" || kind == "arrowUpper")
+            return -0.5;
+        if (kind == "lower" || kind == "arrowLower")
+            return 0.5;
+        if (kind == "left")
+            return -.95;
+        if (kind == "right")
+            return .95;
+        if (typeof kind == "undefined")
+            return [-.95,-0.5,1,-0.5,.95,0.5,-1,0.5];
+        return null;
+    }
 
     ////////////////////////////////////////////////////////////////////////////
     // Initialization
     ////////////////////////////////////////////////////////////////////////////
 
-    logic = new FlowOperationLogic(this);
+    this.draw = draw;
+    this.ontoggle = ontoggle;
+    this.onclick = onclick;
+    this.getHeight = getHeight;
+    this.getBounds = getBounds;
+    this.isToggled = function(){return selected;};
+    this.getLogic = function(){return logic;};
+    this.getLabel = function(){return label;};
+    this.setLabel = function(text){label = text;};
+    this.type = 'inout';
 }
