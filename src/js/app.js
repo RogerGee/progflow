@@ -98,7 +98,7 @@ function initPage() {
     mainPanel.addButtonA("oper",buttonMakeOperationNode);
     mainPanel.addButtonA("in",buttonMakeInNode);
     mainPanel.addButtonA("out",buttonMakeOutNode);
-    mainPanel.addButtonA("if");
+    mainPanel.addButtonA("if",buttonMakeIfNode);
     mainPanel.addButtonA("while");
     mainPanel.addButtonA("for");
     mainPanel.addButtonA("ret");
@@ -196,6 +196,10 @@ function buttonMakeInNode(e) {
 
 function buttonMakeOutNode(e) {
     context.addNode('flowout',"");
+}
+
+function buttonMakeIfNode(e) {
+    context.addNode('flowif',"");
 }
 
 function buttonMakeProcNode(e) {

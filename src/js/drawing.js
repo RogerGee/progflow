@@ -198,6 +198,16 @@ function DrawingContext(canvas,canvasView,programName) {
         ctx.restore();
     }
 
+    // drawLine() - draw a line similar to the line drawn with drawArrow()
+    function drawLine(a,b) {
+        drawPolygon(Array.prototype.concat(a,b));
+        ctx.save();
+        ctx.setTransform(1,0,0,1,0,0);
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+        ctx.restore();
+    }
+
     // addBlock() - create new procedure block under top-block; this is used to
     // add top-level procedure visuals to the context
     function addBlock(label) {
@@ -260,6 +270,9 @@ function DrawingContext(canvas,canvasView,programName) {
         }
         else if (kind == "flowout") {
             node = new FlowInOutVisual(label,currentBlock.getLogic(),"out");
+        }
+        else if (kind == 'flowif') {
+            node = new FlowIfVisual(label,currentBlock.getLogic());
         }
 
         if (node != null) {
@@ -324,6 +337,7 @@ function DrawingContext(canvas,canvasView,programName) {
     ctx.drawPolygon = drawPolygon;
     ctx.drawArrow = drawArrow;
     ctx.drawText = drawText;
+    ctx.drawLine = drawLine;
     canvas.onclick = onCanvasClick;
     topBlock.setHeightChangeCallback(resizeCanvas);
     topBlock.setIcon(false);
@@ -395,6 +409,7 @@ function FlowBlockVisual(label,block) {
             // obtain the child's height; we must multiply it by 1/3 since the
             // child will be scaled by that factor
             var h = obj.getHeight() * ONE_THIRD, hh = h/2;
+            var s = 1-VISUAL_PADDING/hh;
             ctx.save();
 
             // translate to the center of the object (using its half-height);
@@ -403,7 +418,7 @@ function FlowBlockVisual(label,block) {
             // (that will be the default height for a child element)
             ctx.translate(0,ty);
             ctx.translate(0,hh-ONE_THIRD);
-            ctx.scale(1-VISUAL_PADDING/hh,1-VISUAL_PADDING/hh);
+            ctx.scale(s,s);
             ctx.translate(0,-hh+ONE_THIRD);
             ctx.scale(ONE_THIRD,ONE_THIRD);
 
@@ -425,20 +440,54 @@ function FlowBlockVisual(label,block) {
         ctx.restore();
     }
 
-    // connect() - draw an arrow between two different visual elements
+    // connect() - draw an arrow between two different visual elements; they may
+    // specify via getBounds('arrowUpper') and getBounds('arrowLower') one of:
+    //  y           - position is (0,y)
+    // [x,y]        - position is (x,y)
+    // [[x1,y1],... - positions are (x1,y1), ...
     function connect(ctx,a,b,off1,off2) {
-        var hy = b.getBounds("arrowUpper");
-        var ty = a.getBounds("arrowLower");
+        var bu = b.getBounds("arrowUpper");
+        var bl = a.getBounds("arrowLower");
 
         // a visual may not define arrow bounds (meaning an arrow shouldn't be drawn)
-        if (hy != null && ty != null) {
-            // perform the same transformations that draw() does but with a different
-            // translation for the head and tail (this does not include the padding
-            // transformations)
-            hy *= ONE_THIRD; hy += off2;
-            ty *= ONE_THIRD; ty += off1;
+        // if it returns nothing for the arrow bounds
+        if (bu == null || bl == null)
+            return;
 
-            ctx.drawArrow([0,ty],[0,hy]);
+        if (!Array.isArray(bu))
+            bu = [bu];
+        if (!Array.isArray(bl))
+            bl = [bl];
+
+        for (var i = 0;i < bu.length;++i) {
+            for (var j = 0;j < bl.length;++j) {
+                var hx, hy, tx, ty;
+                if (Array.isArray(bu[i])) {
+                    hx = bu[i][0];
+                    hy = bu[i][1];
+                }
+                else {
+                    hx = 0;
+                    hy = bu[i];
+                }
+                if (Array.isArray(bl[j])) {
+                    tx = bl[j][0];
+                    ty = bl[j][1];
+                }
+                else {
+                    tx = 0;
+                    ty = bl[j];
+                }
+
+                // perform the same transformations that draw() does but with a different
+                // translation for the head and tail (this does not include the padding
+                // transformations)
+                hx *= ONE_THIRD; tx *= ONE_THIRD;
+                hy *= ONE_THIRD; hy += off2;
+                ty *= ONE_THIRD; ty += off1;
+
+                ctx.drawArrow([tx,ty],[hx,hy]);
+            }
         }
     }
 
@@ -812,4 +861,113 @@ function FlowInOutVisual(label,block,param) {
     this.getLabel = function(){return label;};
     this.setLabel = function(text){label = text;};
     this.type = 'inout';
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// FlowIfVisual
+////////////////////////////////////////////////////////////////////////////////
+
+function FlowIfVisual(label,block) {
+    var selected = false;
+    var logic = new FlowIfLogic(this,block);
+    var truePart = new FlowBlockVisual("true",block);
+    var falsePart = new FlowBlockVisual("false",block);
+
+
+    ////////////////////////////////////////////////////////////////////////////
+    // Functions
+    ////////////////////////////////////////////////////////////////////////////
+
+    function draw(ctx) {
+        ctx.drawPolygon(getBounds());
+        ctx.save();
+        ctx.setTransform(1,0,0,1,0,0);
+        if (selected) {
+            ctx.fillStyle = SELECT_COLOR;
+            ctx.globalAlpha = SELECT_ALPHA;
+            ctx.fill();
+            ctx.globalAlpha = 1.0;
+        }
+        ctx.lineWidth = 1.0;
+        ctx.stroke();
+        ctx.restore();
+
+        var w = getBounds('right') - getBounds('left');
+        ctx.drawText('if',0,0.15,w,0.25,true);
+        var text = label == "" ? "false" : label;
+        ctx.drawText(label,0,0.5,w,0.25,true);
+
+        // draw true and false blocks as well as lower lines after the blocks
+        ctx.save();
+        ctx.drawLine([-1,0.5],[-2,0.5]);
+        ctx.drawLine([1,0.5],[2,0.5]);
+        ctx.save();
+        ctx.scale(3,3); // undo our parent's ONE_THIRD scaling to make arrow head
+                        // size consistent with parent's rendering
+        ctx.drawArrow([-2/3,0.5/3],[-2/3,2/3]);
+        ctx.drawArrow([2/3,0.5/3],[2/3,2/3]);
+        ctx.restore();
+
+        ctx.translate(-2,3); // translate to center for 'truePart'
+        truePart.draw(ctx);
+
+        var y1, y2, y3;
+        y1 = truePart.getBounds('arrowLower') + 1, y2 = getBounds('arrowLower')-3;
+        y3 = falsePart.getBounds('arrowLower') + 1;
+
+        ctx.drawLine([0,y1],[0,y2]);
+        ctx.translate(4,0); // translate to center for 'falsePart'
+        ctx.drawLine([0,y3],[0,y2]);
+        ctx.drawLine([0,y2],[-4,y2]);
+
+        falsePart.draw(ctx);
+        ctx.restore();
+    }
+
+    function ontoggle() {
+        selected = !selected;
+        logic.ontoggle(selected);
+    }
+
+    function onclick(x,y) {
+        // run pnpoly to see if the shape was clicked
+        return pnpoly(getBounds(),x,y) ? this : null;
+    }
+
+    function getHeight() {
+        return 4 + Math.max(truePart.getHeight(),falsePart.getHeight());
+    }
+
+    function getBounds(kind) {
+        if (kind == "upper" || kind == "arrowUpper")
+            return -0.95;
+        if (kind == "lower")
+            return getHeight(); // subtract out to get coordinate
+        if (kind == "arrowLower") {
+            // there are multiple connections in the lower bound
+            return getHeight()-1;
+        }
+        if (kind == "left")
+            return -.95;
+        if (kind == "right")
+            return .95;
+        if (typeof kind == "undefined")
+            return [-.95,0.5,0.0,-0.95,.95,0.5,0.0,1.95];
+        return null;
+    }
+
+    ////////////////////////////////////////////////////////////////////////////
+    // Initialization
+    ////////////////////////////////////////////////////////////////////////////
+
+    this.draw = draw;
+    this.ontoggle = ontoggle;
+    this.onclick = onclick;
+    this.getHeight = getHeight;
+    this.getBounds = getBounds;
+    this.isToggled = function(){return selected;};
+    this.getLogic = function(){return logic;};
+    this.getLabel = function(){return label;};
+    this.setLabel = function(text){label = text;};
+    this.type = 'if';
 }
