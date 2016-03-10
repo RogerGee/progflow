@@ -29,7 +29,7 @@ function pnpoly(poly,x,y) {
 function DrawingContext(canvas,canvasView,programName) {
     var ctx = canvas.getContext("2d"); // HTML5 Canvas context
     // block for all program elements
-    var topBlock = new FlowBlockVisual(programName);
+    var topBlock = new FlowBlockVisual(ctx,programName);
     var currentBlock = topBlock;
     var blockStack = [];
 
@@ -81,7 +81,7 @@ function DrawingContext(canvas,canvasView,programName) {
 
         // render all of the drawable objects in our possession which fall under
         // the currently selected block
-        currentBlock.draw(ctx);
+        currentBlock.draw();
     }
 
     // drawPolygon() - draws a series of connected line segments to form a
@@ -198,6 +198,21 @@ function DrawingContext(canvas,canvasView,programName) {
         ctx.restore();
     }
 
+    function textWidth(txt,fontHeight) {
+        var w;
+        var sx = canvas.width / 2;
+        var sy = canvas.height / currentBlock.getHeight();
+        var fontSz = fontHeight * sy;
+
+        ctx.save();
+        ctx.scale(1/sx,1/sy);
+        ctx.font = fontSz + "px " + DEFAULT_FONT;
+        w = ctx.measureText(txt).width;
+        ctx.restore();
+
+        return w / sx;
+    }
+
     // drawLine() - draw a line similar to the line drawn with drawArrow()
     function drawLine(a,b) {
         drawPolygon(Array.prototype.concat(a,b));
@@ -211,7 +226,7 @@ function DrawingContext(canvas,canvasView,programName) {
     // addBlock() - create new procedure block under top-block; this is used to
     // add top-level procedure visuals to the context
     function addBlock(label) {
-        var element = new FlowBlockVisual(label); // has no parent logic to inherit
+        var element = new FlowBlockVisual(ctx,label); // has no parent logic to inherit
         element.setHeightChangeCallback(resizeCanvas);
         topBlock.addChild(element);
         drawScreen();
@@ -260,19 +275,19 @@ function DrawingContext(canvas,canvasView,programName) {
         // logic object;
         kind = kind.toLowerCase();
         if (kind == "flowblock") {
-            node = new FlowBlockVisual(label,currentBlock.getLogic(),param);
+            node = new FlowBlockVisual(ctx,label,currentBlock.getLogic(),param);
         }
         else if (kind == "flowoperation") {
-            node = new FlowOperationVisual(label,currentBlock.getLogic(),param);
+            node = new FlowOperationVisual(ctx,label,currentBlock.getLogic(),param);
         }
         else if (kind == "flowin") {
-            node = new FlowInOutVisual(label,currentBlock.getLogic(),"in");
+            node = new FlowInOutVisual(ctx,label,currentBlock.getLogic(),"in");
         }
         else if (kind == "flowout") {
-            node = new FlowInOutVisual(label,currentBlock.getLogic(),"out");
+            node = new FlowInOutVisual(ctx,label,currentBlock.getLogic(),"out");
         }
         else if (kind == 'flowif') {
-            node = new FlowIfVisual(label,currentBlock.getLogic());
+            node = new FlowIfVisual(ctx,label,currentBlock.getLogic());
         }
 
         if (node != null) {
@@ -338,6 +353,7 @@ function DrawingContext(canvas,canvasView,programName) {
     ctx.drawArrow = drawArrow;
     ctx.drawText = drawText;
     ctx.drawLine = drawLine;
+    ctx.textWidth = textWidth;
     canvas.onclick = onCanvasClick;
     topBlock.setHeightChangeCallback(resizeCanvas);
     topBlock.setIcon(false);
@@ -367,7 +383,7 @@ function DrawingContext(canvas,canvasView,programName) {
 // diagram elements rendered on the screen
 ////////////////////////////////////////////////////////////////////////////////
 
-function FlowBlockVisual(label,block) {
+function FlowBlockVisual(ctx,label,block) {
     var children = []; // list of child drawables
     var iconified = true; // whether or not is iconified (i.e. made small)
     var maxy = 1.0; // max y-coordinate for our coordinate system
@@ -378,7 +394,7 @@ function FlowBlockVisual(label,block) {
     // Functions
     ////////////////////////////////////////////////////////////////////////////
 
-    function draw(ctx) {
+    function draw() {
         // draw the box representing the block
         ctx.save();
         ctx.drawPolygon(getBounds());
@@ -423,7 +439,7 @@ function FlowBlockVisual(label,block) {
             ctx.scale(ONE_THIRD,ONE_THIRD);
 
             // draw the sub-visual
-            obj.draw(ctx);
+            obj.draw();
             ctx.restore();
 
             // draw connection arrow from last object to this one (this may do
@@ -562,11 +578,11 @@ function FlowBlockVisual(label,block) {
             children.push(child);
         }
         else {
-            // insert (after) at position
-            children.splice(index+1,0,child);
+            // insert (before) selected position
+            children.splice(index,0,child);
             if (typeof child.ontoggle != "undefined") {
                 // untoggle current child and select the new one
-                children[index].ontoggle(); // must be toggleable
+                children[index+1].ontoggle(); // must be toggleable
                 child.ontoggle();
             }
         }
@@ -666,7 +682,7 @@ function FlowBlockVisual(label,block) {
     // iterator; the iterator is an object with an 'iter' integer property
     function nextChild(iter) {
         if (iter.iter >= children.length) {
-            iter.iter = 0;
+            // we don't reset the iterator here; the user should create a new iterator
             return null;
         }
 
@@ -703,16 +719,17 @@ function FlowBlockVisual(label,block) {
 // operation in the program
 ////////////////////////////////////////////////////////////////////////////////
 
-function FlowOperationVisual(label,block) {
-    var selected = false;
-    var logic;
+function FlowOperationVisual(ctx,label,block) {
+    var logic; // visual logic object
+    var selected = false; // has the visual been selected?
+    var wbound = 1; // absolute value of width bound
 
     ////////////////////////////////////////////////////////////////////////////
     // Functions
     ////////////////////////////////////////////////////////////////////////////
 
     // draw() - main drawing operation
-    function draw(ctx) {
+    function draw() {
         ctx.drawPolygon(getBounds());
         ctx.save();
         ctx.setTransform(1,0,0,1,0,0);
@@ -750,11 +767,11 @@ function FlowOperationVisual(label,block) {
         if (kind == "lower" || kind == "arrowLower")
             return 0.5;
         if (kind == "left")
-            return -1;
+            return -wbound;
         if (kind == "right")
-            return 1;
+            return wbound;
         if (typeof kind == "undefined")
-            return [-1,-0.5,1,-0.5,1,0.5,-1,0.5];
+            return [-wbound,-0.5,wbound,-0.5,wbound,0.5,-wbound,0.5];
         return null;
     }
 
@@ -769,6 +786,17 @@ function FlowOperationVisual(label,block) {
         return null;
     }
 
+    // setLabel: set the label for the visual and potentially resize it
+    function setLabel(text) {
+        label = text;
+        var w = ctx.textWidth(label,0.5);
+        if (w > 6) // there are 6 units across the screen
+            w = 6;
+        if (w < 2)
+            w = 2;
+        wbound = w / 2;
+    }
+
     ////////////////////////////////////////////////////////////////////////////
     // Initialization
     ////////////////////////////////////////////////////////////////////////////
@@ -781,8 +809,9 @@ function FlowOperationVisual(label,block) {
     this.isToggled = function(){return selected;};
     this.getLogic = function(){return logic;};
     this.getLabel = function(){return label;};
-    this.setLabel = function(text){label = text;};
+    this.setLabel = setLabel;
     this.type = 'operation';
+    setLabel(label);
     logic = new FlowOperationLogic(this,block);
 }
 
@@ -791,15 +820,16 @@ function FlowOperationVisual(label,block) {
 // output functionality
 ////////////////////////////////////////////////////////////////////////////////
 
-function FlowInOutVisual(label,block,param) {
+function FlowInOutVisual(ctx,label,block,param) {
     var selected = false;
     var logic = new FlowInOutLogic(this,block,param);
+    var wbound = 1;
 
     ////////////////////////////////////////////////////////////////////////////
     // Functions
     ////////////////////////////////////////////////////////////////////////////
 
-    function draw(ctx) {
+    function draw() {
         ctx.drawPolygon(getBounds());
         ctx.save();
         ctx.setTransform(1,0,0,1,0,0);
@@ -814,7 +844,7 @@ function FlowInOutVisual(label,block,param) {
         ctx.restore();
 
         var w = getBounds('right') - getBounds('left');
-        ctx.drawText(param,-.925,-0.3,w,0.25);
+        ctx.drawText(param,-wbound+.075,-0.3,w,0.25);
         if (label != "")
             ctx.drawText(label,0,0,w,0.5,true);
     }
@@ -839,12 +869,22 @@ function FlowInOutVisual(label,block,param) {
         if (kind == "lower" || kind == "arrowLower")
             return 0.5;
         if (kind == "left")
-            return -.95;
+            return -wbound + .05;
         if (kind == "right")
-            return .95;
+            return wbound - .05;
         if (typeof kind == "undefined")
-            return [-.95,-0.5,1,-0.5,.95,0.5,-1,0.5];
+            return [-wbound+.05,-0.5,wbound,-0.5,wbound-.05,0.5,-wbound,0.5];
         return null;
+    }
+
+    function setLabel(text) {
+        label = text;
+        var w = ctx.textWidth(label,0.5);
+        if (w > 6) // there are 6 units across the screen
+            w = 6;
+        if (w < 2)
+            w = 2;
+        wbound = w / 2;
     }
 
     ////////////////////////////////////////////////////////////////////////////
@@ -859,7 +899,7 @@ function FlowInOutVisual(label,block,param) {
     this.isToggled = function(){return selected;};
     this.getLogic = function(){return logic;};
     this.getLabel = function(){return label;};
-    this.setLabel = function(text){label = text;};
+    this.setLabel = setLabel;
     this.type = 'inout';
 }
 
@@ -867,18 +907,17 @@ function FlowInOutVisual(label,block,param) {
 // FlowIfVisual
 ////////////////////////////////////////////////////////////////////////////////
 
-function FlowIfVisual(label,block) {
+function FlowIfVisual(ctx,label,block) {
     var selected = false;
-    var logic = new FlowIfLogic(this,block);
-    var truePart = new FlowBlockVisual("true",block);
-    var falsePart = new FlowBlockVisual("false",block);
-
+    var logic;
+    var truePart = new FlowBlockVisual(ctx,"true",block);
+    var falsePart = new FlowBlockVisual(ctx,"false",block);
 
     ////////////////////////////////////////////////////////////////////////////
     // Functions
     ////////////////////////////////////////////////////////////////////////////
 
-    function draw(ctx) {
+    function draw() {
         ctx.drawPolygon(getBounds());
         ctx.save();
         ctx.setTransform(1,0,0,1,0,0);
@@ -893,7 +932,7 @@ function FlowIfVisual(label,block) {
         ctx.restore();
 
         var w = getBounds('right') - getBounds('left');
-        ctx.drawText('if',0,0.15,w,0.25,true);
+        ctx.drawText('if',0,-0.15,w,0.25,true);
         var text = label == "" ? "false" : label;
         ctx.drawText(label,0,0.5,w,0.25,true);
 
@@ -909,18 +948,18 @@ function FlowIfVisual(label,block) {
         ctx.restore();
 
         ctx.translate(-2,3); // translate to center for 'truePart'
-        truePart.draw(ctx);
+        truePart.draw();
 
         var y1, y2, y3;
-        y1 = truePart.getBounds('arrowLower') + 1, y2 = getBounds('arrowLower')-3;
-        y3 = falsePart.getBounds('arrowLower') + 1;
+        y1 = truePart.getBounds('lower'), y2 = getBounds('arrowLower')-3;
+        y3 = falsePart.getBounds('lower');
 
         ctx.drawLine([0,y1],[0,y2]);
         ctx.translate(4,0); // translate to center for 'falsePart'
         ctx.drawLine([0,y3],[0,y2]);
         ctx.drawLine([0,y2],[-4,y2]);
 
-        falsePart.draw(ctx);
+        falsePart.draw();
         ctx.restore();
     }
 
@@ -931,7 +970,14 @@ function FlowIfVisual(label,block) {
 
     function onclick(x,y) {
         // run pnpoly to see if the shape was clicked
-        return pnpoly(getBounds(),x,y) ? this : null;
+        if (pnpoly(getBounds(),x,y))
+            return this;
+
+        // see if either true part or false part was clicked
+        var r;
+        if ((r = truePart.onclick(x+2,y-3)) != null)
+            return r;
+        return falsePart.onclick(x-2,y-3);
     }
 
     function getHeight() {
@@ -956,6 +1002,14 @@ function FlowIfVisual(label,block) {
         return null;
     }
 
+    // setHeightChangeCallback() - we need to know what to do when we resize; we
+    // resize only when 'truePart' or 'falsePart' resizes
+    function setHeightChangeCallback(callback) {
+        // pass the callback along to the sub blocks
+        truePart.setHeightChangeCallback(callback);
+        falsePart.setHeightChangeCallback(callback);
+    }
+
     ////////////////////////////////////////////////////////////////////////////
     // Initialization
     ////////////////////////////////////////////////////////////////////////////
@@ -965,9 +1019,14 @@ function FlowIfVisual(label,block) {
     this.onclick = onclick;
     this.getHeight = getHeight;
     this.getBounds = getBounds;
+    this.setHeightChangeCallback = setHeightChangeCallback;
     this.isToggled = function(){return selected;};
     this.getLogic = function(){return logic;};
     this.getLabel = function(){return label;};
     this.setLabel = function(text){label = text;};
+    this.getTruePart = function(){return truePart;};
+    this.getFalsePart = function(){return falsePart;};
     this.type = 'if';
+
+    logic = new FlowIfLogic(this,block);
 }

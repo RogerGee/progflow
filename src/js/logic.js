@@ -17,7 +17,7 @@ function FlowBlockLogic(visual,block) {
     // scope)
     function createVariable(name) {
         if (typeof locals[name] == "undefined") {
-            locals[name] = 0;
+            locals[name] = 0; // default type is 0
             return true;
         }
 
@@ -198,7 +198,7 @@ function FlowOperationLogic(visual,block) {
             if (!newexpr.error()) {
                 if (!newexpr.containsNode('assign-expr')) {
                     terminal.addLine("operation block: warning: "
-                        + newexprStr + ": statement has no effect");
+                        + newexprStr + ": statement has no effect",'warning-line');
                 }
 
                 expr = newexpr;
@@ -227,8 +227,15 @@ function FlowOperationLogic(visual,block) {
 
     // exec() - perform execution step within the simulation
     function exec(args) {
-        expr.evaluate(block);
-        args.next();
+        try {
+            expr.evaluate(block);
+            args.next();
+        }
+        catch (e) {
+            // the expression evaluation can throw errors; this stops the
+            // execution of the program
+            terminal.addLine('operation-block: eval error: '+e,'error-line');
+        }
     }
 
     ////////////////////////////////////////////////////////////////////////////
@@ -295,6 +302,7 @@ function FlowInOutLogic(visual,block,param) {
 ////////////////////////////////////////////////////////////////////////////////
 
 function FlowIfLogic(visual,block) {
+    var expr = new ExpressionParser("false",true,false);
 
     ////////////////////////////////////////////////////////////////////////////
     // Functions
@@ -307,10 +315,50 @@ function FlowIfLogic(visual,block) {
             return;
         }
 
+        nodePanel.addLabel("Edit If Condition:",true);
+        nodePanel.addBreak(false);
+        nodePanel.addLabel("Condition:");
+        nodePanel.addTextField('flow-ifcond-entry',1024,expr.expr());
+        nodePanel.addBreak(false);
+        nodePanel.addButtonB('submit',function(){
+            var newstr = nodePanel.getElementValue('flow-ifcond-entry');
+            var newexpr = new ExpressionParser(newstr,true,false);
+            if (!newexpr.error()) {
+                if (newexpr.empty()) {
+                    terminal.addLine("if block: condition: must not be empty",
+                        'error-line');
+                    return;
+                }
+                if (newexpr.parseTree().root.typeOf() != 'boolean') {
+                    terminal.addLine("if block: condition: expression must evaluate"
+                        + " to a Boolean value",'error-line');
+                    return; // take no action
+                }
+                expr = newexpr;
+                visual.setLabel(newstr);
+                visual.ontoggle();
+                context.drawScreen();
+            }
+            else { // take no action
+                var msg = "if block: parse error: " + newstr;
+                var parseError = newexpr.errorMsg();
+                if (parseError != "")
+                    msg += ": " + parseError;
+                terminal.addLine(msg,'error-line');
+            }
+        });
     }
 
     function exec(args) {
+        // we implement the if-statement with an if-statement: go figure
+        if (expr.evaluate(block)) {
+            visual.getTruePart().getLogic().exec(args);
+        }
+        else {
+            visual.getFalsePart().getLogic().exec(args);
+        }
 
+        args.next();
     }
 
     ////////////////////////////////////////////////////////////////////////////
@@ -319,6 +367,8 @@ function FlowIfLogic(visual,block) {
 
     this.ontoggle = ontoggle;
     this.exec = exec;
+
+    visual.setLabel(expr.expr());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -448,7 +498,7 @@ FormatString.prototype.input = function(block,next) {
 const IDENT_REGEX = /[a-zA-Z_][a-zA-Z_0-9]*/;
 const NUMER_REGEX = /[0-9]*(?:\.?[0-9]+)/;
 const SYMBOL_REGEX = /\(|\)|\+|-|\*|\/|\^|,|==|=|<=|>=|<>|<|>/; // list longest strings first
-const EXPR_REGEX = /([a-zA-Z_][a-zA-Z_0-9]*)|([0-9]*(?:\.?[0-9]+))|(\(|\)|\+|-|\*|\/|\^|,|==|=|<=|>=|<>|<|>)/g;
+const EXPR_REGEX = /([a-zA-Z_][a-zA-Z_0-9]*)|([0-9]*(?:\.?[0-9]+))|(\(|\)|\+|-|\*|\/\/|\/|\^|,|==|=|<=|>=|<>|<|>)/g;
 
 // expression types for evaluation
 AssignmentExpressionNode = function(left,right) {
@@ -515,6 +565,11 @@ DivideExpressionNode = function(left,right) {
     this.left = left;
     this.right = right;
     this.kind = 'divide-expr';
+};
+IDivideExpressionNode = function(left,right) {
+    this.left = left;
+    this.right = right;
+    this.kind = 'idivide-expr';
 };
 ExponentExpressionNode = function(left,right) {
     this.left = left;
@@ -596,6 +651,9 @@ MultiplyExpressionNode.prototype.eval = function(block) {
 DivideExpressionNode.prototype.eval = function(block) {
     return this.left.eval(block) / this.right.eval(block);
 };
+IDivideExpressionNode.prototype.eval = function(block) {
+    return Math.floor(this.left.eval(block) / this.right.eval(block));
+};
 ExponentExpressionNode.prototype.eval = function(block) {
     return Math.pow(this.left.eval(block),this.right.eval(block));
 };
@@ -619,6 +677,12 @@ FunctionCallExpressionNode.prototype.eval = function(block) {
 
 };
 IdentifierNode.prototype.eval = function(block) {
+    // special identifiers
+    if (this.id == 'true')
+        return true;
+    if (this.id == 'false')
+        return false;
+
     var v = block.lookupVariable(this.id);
     if (v == null) {
         throw "'" + this + "': variable is undefined";
@@ -674,6 +738,9 @@ MultiplyExpressionNode.prototype.toString = function() {
 DivideExpressionNode.prototype.toString = function() {
     return '(' + this.left + ') / (' + this.right + ')';
 };
+IDivideExpressionNode.prototype.toString = function() {
+    return '(' + this.left + ') // (' + this.right + ')';
+};
 ExponentExpressionNode.prototype.toString = function() {
     return '(' + this.left + ') ^ (' + this.right + ')';
 };
@@ -688,6 +755,69 @@ IdentifierNode.prototype.toString = function() {
 };
 NumberNode.prototype.toString = function() {
     return String(this.value);
+};
+
+// typeOf prototypes for expression types
+AssignmentExpressionNode.prototype.typeOf = function() {
+    return this.right.typeOf();
+};
+LogicORExpressionNode.prototype.typeOf = function() {
+    return 'boolean';
+};
+LogicANDExpressionNode.prototype.typeOf = function() {
+    return 'boolean';
+};
+EqualExpressionNode.prototype.typeOf = function() {
+    return 'boolean';
+};
+NotEqualExpressionNode.prototype.typeOf = function() {
+    return 'boolean';
+};
+LessThanExpressionNode.prototype.typeOf = function() {
+    return 'boolean';
+};
+GreaterThanExpressionNode.prototype.typeOf = function() {
+    return 'boolean';
+};
+LessThanEqualExpressionNode.prototype.typeOf = function() {
+    return 'boolean';
+};
+GreaterThanEqualExpressionNode.prototype.typeOf = function() {
+    return 'boolean';
+};
+AddExpressionNode.prototype.typeOf = function() {
+    return 'number';
+};
+SubtractExpressionNode.prototype.typeOf = function() {
+    return 'number';
+};
+MultiplyExpressionNode.prototype.typeOf = function() {
+    return 'number';
+};
+DivideExpressionNode.prototype.typeOf = function() {
+    return 'number';
+};
+IDivideExpressionNode.prototype.typeOf = function() {
+    return 'number';
+};
+ExponentExpressionNode.prototype.typeOf = function() {
+    return 'number';
+};
+NegateExpressionNode.prototype.typeOf = function() {
+    return 'number';
+};
+NotExpressionNode.prototype.typeOf = function() {
+    return 'boolean';
+};
+IdentifierNode.prototype.typeOf = function() {
+    if (this.id == 'true' || this.id == 'false')
+        return 'boolean';
+
+    // a variable doesn't necessarily have a value at this point...
+    return 'variable';
+};
+NumberNode.prototype.typeOf = function() {
+    return 'number';
 };
 
 function ExpressionParser(expr,allowBoolean,allowAssignment) {
@@ -716,6 +846,7 @@ function ExpressionParser(expr,allowBoolean,allowAssignment) {
                 if (tok == "and" || tok == "or" || tok == "mod" || tok == "not")
                     otok.kind = 'symbol';
                 else
+                    // some identifiers are treated specially (such as 'true')
                     otok.kind = 'identifier';
             }
             else if (tok.match(NUMER_REGEX))
@@ -902,6 +1033,8 @@ function ExpressionParser(expr,allowBoolean,allowAssignment) {
             return multiplicativeExpressionOpt( new MultiplyExpressionNode(node,exponentialExpression()) );
         else if (matchToken('symbol','/'))
             return multiplicativeExpressionOpt( new DivideExpressionNode(node,exponentialExpression()) );
+        else if (matchToken('symbol','//'))
+            return multiplicativeExpressionOpt( new IDivideExpressionNode(node,exponentialExpression()) );
 
         return node;
     }

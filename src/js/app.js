@@ -100,7 +100,6 @@ function initPage() {
     mainPanel.addButtonA("out",buttonMakeOutNode);
     mainPanel.addButtonA("if",buttonMakeIfNode);
     mainPanel.addButtonA("while");
-    mainPanel.addButtonA("for");
     mainPanel.addButtonA("ret");
     mainPanel.addButtonA("proc",buttonMakeProcNode);
     mainPanel.addBreak();
@@ -117,7 +116,7 @@ function initPage() {
 
     // create terminal content
     terminal = new Terminal(terminalView);
-    terminal.addLine(PROGNAME + " " + VERSION);
+    terminal.addLine(PROGNAME + " " + VERSION + " by Roger Gee");
     terminal.addLine(AGENTINFO);
 
     // create canvas and render context
