@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<meta charset="utf-8" />
+
+<html>
+    <head>
+        <link rel='stylesheet' href='pages.css'>
+    </head>
+    <body>
+        <h1>Operation Blocks</h1>
+
+        <p>
+            Operation blocks are elements in the flow diagram that perform an
+            operation using information in the program. An operation is any
+            combination of mathematical operations. An operation takes a single
+            expression which can include any of the following operations:
+        </p>
+
+        <table style="margin: 2%" cellspacing=10>
+            <tr>
+                <td>5</td>
+                <td><code> ( A ) </code></td>
+                <td>
+                    evaluates <code>A</code>; this is useful to promote
+                    <code>A</code> to a higher precedence
+                </td>
+            </tr>
+            <tr>
+                <td>4</td>
+                <td><code> -A </code></td>
+                <td>
+                    evaluates the negation of <code>A</code> (i.e. multiplies
+                     <code>A</code> by -1)
+                 </td>
+            </tr>
+            <tr>
+                <td>3</td>
+                <td><code> A ^ B </code></td>
+                <td>
+                    evaluates <code>A</code> raised to the power <code>B</code>
+                </td>
+            </tr>
+            <tr>
+                <td>2</td>
+                <td><code>A * B</code></td>
+                <td>
+                    evaluates the product of <code>A</code> and <code>B</code>
+                </td>
+            </tr>
+            <tr>
+                <td>2</td>
+                <td><code>A / B</code></td>
+                <td>
+                    evaluates the real-valued quotient of <code>A</code>
+                    and <code>B</code>
+                </td>
+            </tr>
+            <tr>
+                <td>2</td>
+                <td><code>A // B</code></td>
+                <td>
+                    evaluates the integer-valued quotient of <code>A</code>
+                    and <code>B</code>; (i.e. performs integer division)
+                </td>
+            </tr>
+            <tr>
+                <td>1</td>
+                <td><code>A + B</code></td>
+                <td>
+                    evaluates the sum of <code>A</code> and <code>B</code>
+                </td>
+            </tr>
+            <tr>
+                <td>1</td>
+                <td><code>A - B</code></td>
+                <td>
+                    evaluates the difference of <code>A</code> and <code>B</code>
+                </td>
+            </tr>
+        </table>
+
+        <p>
+            The operations listed above are listed in order of <i>precedence</i>.
+            Precedence indicates the order in which the operations are evaluated.
+            Operations with a higher precedence (i.e. those listed first in the
+            list) are evaluated before those of a lower precedence. Some operations
+            are evaluated at the same precedence level (such as addition and
+            subtraction). The number in the far left column indicates the exact
+            precedence level of the operation. Overall, the simulator is going to
+            follow the standard mathematical order of operations you would expect.
+        </p>
+
+        <p>
+            An operation block expression <i>cannot</i> produce Boolean (i.e. truth)
+            values. This means you cannot use operators such as <code> &lt; </code>
+            or <code> or </code> (no pun there). See <a href="help-cond.html">
+                conditional expressions</a>.
+        </p>
+
+        <p>
+            An operation would have no effect if its value weren't saved. The
+            simulator therefore provides <i>variables</i> in order to store information
+            in the program. Every variable has a unique name. Its name must begin
+            with a letter (either upper or lower case) or underscore <code>_</code>.
+            Any subsequent combination of letters, underscores or digits is allowed.
+        </p>
+
+        <p>
+            To allow you to <i>assign</i> a value to a variable, the operation
+            expression provides an assignment operator: <code>=</code>. This operator
+            <u>does not</u> indicate a test for equality! The equality operator
+            is <code>==</code> (two equal signs). Most programming languages make
+            this distinction. Note that a variable is created when you first use it.
+            For example:
+        </p>
+
+            <code style="margin: 2%"> a = 2+2 </code>
+
+        <p>
+            This operation evaluates <code>2+2</code> and then assigns that value
+            (i.e. <code>4</code>) to a variable called <code>a</code>.
+            If your operation expression doesn't have an assignment, the Simulator
+            will warn you that your operation will have no effect. You should always
+            have at least one assignment per operation.
+        </p>
+
+        <p>
+            You can do more with variables than just assign them values. You can
+            also use them in an operation (i.e. in the right-hand side of an assignment):
+        </p>
+
+        <table style="margin: 2%" cellspacing=10>
+            <tr>
+                <td><code> a = b+c </code></td>
+                <td>
+                    Assign the evaluation of <code>b+c</code> to <code>a</code>
+                </td>
+            </tr>
+            <tr>
+                <td><code> a = a + 1 </code></td>
+                <td>
+                    Assign <code>a+1</code> to <code>a</code>; this increments
+                    the value of <code>a</code> by 1.
+                </td>
+            </tr>
+        </table>
+
+        <p>
+            <u>Be careful</u> that a variable actually has been given a value when you
+            use it on the right-hand side. The Simulator will give the variable
+            a value of <code>0</code> if it has not been used (and will warn you
+            about it not having existed before being used). You don't want to use
+            a variable that doesn't have a value (you might as well use the value
+            0)!
+        </p>
+
+        <p>
+            Though not entirely necessary, it is beneficial to understand that
+            the assignment operation actually is an expression as well. In fact,
+            it evaluates to the value that is assigned, and the evaluation is always
+            right-most, meaning the right-most possible assignment is evaluated
+            before the other ones. This allows you to do things like:
+        </p>
+
+        <table style="margin: 2%" cellspacing=10>
+            <tr>
+                <td><code> a = b = 5 </code></td>
+                <td>
+                    Assign 5 to <code>b</code>, then <code>b</code>
+                    (i.e. 5) to <code>a</code>
+                </td>
+            </tr>
+            <tr>
+                <td><code> 2 + (b = 5)</code></td>
+                <td>
+                    Assign 5 to <code>b</code> then add <code>b</code>
+                    (i.e. 5) to 2
+                </td>
+                <td style="color: red">
+                    Warning: the addition operation has no effect!
+                </td>
+            </tr>
+        </table>
+
+        <p>
+            This side effect of assignments is useful to know to save you having
+            to make more than one operation block to do some mundane task.
+        </p>
+
+        <p>
+            Finally, it is important to talk about an important concept in
+            computer programming called <i>referential opacity</i>, or, in common
+            terms, <i>side effects</i>. Whenever you assign a value to a variable,
+            you change its value and subsequently all values that involve that
+            variable later on (i.e. it has a side effect). Alternatively, when
+            you have an expression that doesn't have any variables it creates
+            what is called <i>referential transparency</i>. If an expression is
+            referentially transparent, you can "see through it" to its evaluation
+            at any instance in time. For example, <code>10*2</code> can always
+            be replaced with the value <code>20</code>. However an expression
+            involving a variable remembers the variable's value from some previous
+            operation. For example, it is impossible to know (i.e. we can't "see
+            the value") the evaluation of <code>a*2</code> without knowing the
+            value of <code>a</code> from some previous operation. Keep these concepts
+            in mind as you design operations using the Simulator.
+        </p>
+    </body>
+</html>

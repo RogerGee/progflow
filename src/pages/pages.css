@@ -1,0 +1,12 @@
+/* pages.css - progflow */
+
+body {
+    font-family: "Helvetica Neue", Helvetica, "Segoe UI", Arial, freesans,
+        sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol";
+}
+
+code {
+    background-color: #f7f7f9;
+    border: 1px solid #e1e1e8;
+    padding: 2;
+}

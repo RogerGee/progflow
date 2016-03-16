@@ -1,0 +1,30 @@
+/* page.css */
+
+.page {
+    z-index: 2;
+    position: absolute;
+    width: 80%;
+    height: 90%;
+    background-color: WhiteSmoke; /* I am thankful for WhiteSmoke. */
+    top: 5%;
+    left: 10%;
+}
+
+.page-content {
+    position: absolute;
+    border-style: none;
+    width: 95%;
+    height: 89%;
+    left: 2.5%;
+    top: 0.5%;
+}
+
+.page-button {
+    font-size: 12pt;
+}
+
+.page-button-panel {
+    position: absolute;
+    right: 0.5%;
+    bottom: 0.5%;
+}

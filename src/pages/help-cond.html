@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<meta charset="utf-8" />
+
+<html>
+    <head>
+        <link rel='stylesheet' href='pages.css'>
+    </head>
+    <body>
+        <h1>Conditional Expressions</h1>
+
+        <p>
+            Conditional expressions allow you to perform logical tests on
+            information in the program such as <i>is 5 less than 6</i> or
+            <i>is 4 equal to twice the value of some variable</i>. Conditional
+            expressions produce values in the program called <i>Boolean values</i>.
+            Boolean values are truth values (i.e. yes/no, true/false). The
+            Simulator defines two keywords for literal Boolean values that you
+            can use in expressions. They are <code>true</code> and <code>false</code>.
+            They aren't really useful by themselves, but they represent the two
+            possibile Boolean values used in conditional expressions (that is to
+            say that every conditional expression evaluates down to either
+            <code>true</code> or <code>false</code>).
+        </p>
+
+        <p>
+            Conditional expressions are used in control structures such as
+            <code>if</code> and <code>while</code> blocks. You cannot use them
+            in operation blocks. This means a variable cannot store a Boolean
+            value.
+        </p>
+
+        <p>
+            Just like operation expressions that use numbers, conditional
+            expressions have operators that use either Boolean values or numbers
+            to produce a Boolean value. Here they are, in order of precedence:
+        </p>
+
+        <table style="margin: 2%" cellspacing=10>
+            <tr>
+                <td>5</td>
+                <td><code> not A </code></td>
+                <td>
+                    evaluates the logical negation of <code>A</code>; i.e. if
+                    <code>A</code> is <code>false</code> it becomes
+                    <code>true</code> and <i>vice versa</i>
+                </td>
+                <td style="color: red">
+                    <code>A</code> must be a Boolean value
+                </td>
+            </tr>
+            <tr>
+                <td>4</td>
+                <td><code>A &lt; B</code></td>
+                <td>
+                    evaluates to <code>true</code> if <code>A</code> is less
+                    than <code>B</code>; <code>false</code> otherwise
+                </td>
+                <td style="color: red">
+                    <code>A</code> and <code>B</code> must be numbers
+                </td>
+            </tr>
+            <tr>
+                <td>4</td>
+                <td><code>A &lt;= B</code></td>
+                <td>
+                    evaluates to <code>true</code> if <code>A</code> is less
+                    than or equal to <code>B</code>; <code>false</code> otherwise
+                </td>
+                <td style="color: red">
+                    <code>A</code> and <code>B</code> must be numbers
+                </td>
+            </tr>
+            <tr>
+                <td>4</td>
+                <td><code>A &gt; B</code></td>
+                <td>
+                    evaluates to <code>true</code> if <code>A</code> is greater
+                    than <code>B</code>; <code>false</code> otherwise
+                </td>
+                <td style="color: red">
+                    <code>A</code> and <code>B</code> must be numbers
+                </td>
+            </tr>
+            <tr>
+                <td>4</td>
+                <td><code>A &gt;= B</code></td>
+                <td>
+                    evaluates to <code>true</code> if <code>A</code> is greater
+                    than or equal to <code>B</code>; <code>false</code> otherwise
+                </td>
+                <td style="color: red">
+                    <code>A</code> and <code>B</code> must be numbers
+                </td>
+            </tr>
+            <tr>
+                <td>3</td>
+                <td><code>A == B</code></td>
+                <td>
+                    evaluates to <code>true</code> if <code>A</code> is equal
+                    to <code>B</code>; <code>false</code> otherwise
+                </td>
+                <td style="color: red">
+                    <code>A</code> and <code>B</code> must be numbers
+                </td>
+            </tr>
+            <tr>
+                <td>3</td>
+                <td><code>A &lt;&gt; B</code></td>
+                <td>
+                    evaluates to <code>true</code> if <code>A</code> is not equal
+                    to <code>B</code>; <code>false</code> otherwise
+                </td>
+                <td style="color: red">
+                    <code>A</code> and <code>B</code> must be numbers
+                </td>
+            </tr>
+            <tr>
+                <td>2</td>
+                <td><code>A and B</code></td>
+                <td>
+                    evaluates to <code>true</code> if <code>A</code> is <code>true</code>
+                    <u>and</u> <code>B</code> is <code>true</code>; <code>false</code> otherwise
+                </td>
+                <td style="color: red">
+                    <code>A</code> and <code>B</code> must be Boolean values
+                </td>
+            </tr>
+            <tr>
+                <td>1</td>
+                <td><code>A or B</code></td>
+                <td>
+                    evaluates to <code>true</code> if one or more of
+                    <code>A</code> or <code>B</code> is <code>true</code>;
+                    <code>false</code> otherwise
+                </td>
+                <td style="color: red">
+                    <code>A</code> and <code>B</code> must be Boolean values
+                </td>
+            </tr>
+        </table>
+
+        <p>
+            It is important to note that the logical <code>or</code> operator
+            evaluates to true if <u>any</u> of its operands is true. This is
+            different from the common English understanding of the word <i>or</i>,
+            which means exclusively one or the other (this is called
+            <i>exclusive-or</i> or <i>xor</i>). Here is the truth tables for the
+            different operations that use Boolean values:
+        </p>
+
+        <table>
+            <tr>
+                <td>
+                    <table style="margin: 2%; border: 1px solid black; border-collapse: collapse;" border="1">
+                        <tr style="font-weight: bold">
+                            <td>A</td> <td>B</td> <td>A <code>or</code> B</td>
+                        </tr>
+                        <tr>
+                            <td><code>false</code></td>
+                            <td><code>false</code></td>
+                            <td><code>false</code></td>
+                        </tr>
+                        <tr>
+                            <td><code>false</code></td>
+                            <td><code>true</code></td>
+                            <td><code>true</code></td>
+                        </tr>
+                        <tr>
+                            <td><code>true</code></td>
+                            <td><code>false</code></td>
+                            <td><code>true</code></td>
+                        </tr>
+                        <tr>
+                            <td><code>true</code></td>
+                            <td><code>true</code></td>
+                            <td><code>true</code></td>
+                        </tr>
+                    </table>
+                </td>
+
+                <td>
+                    <table style="margin: 2%; border: 1px solid black; border-collapse: collapse;" border="1">
+                        <tr style="font-weight: bold">
+                            <td>A</td> <td>B</td> <td>A <code>and</code> B</td>
+                        </tr>
+                        <tr>
+                            <td><code>false</code></td>
+                            <td><code>false</code></td>
+                            <td><code>false</code></td>
+                        </tr>
+                        <tr>
+                            <td><code>false</code></td>
+                            <td><code>true</code></td>
+                            <td><code>false</code></td>
+                        </tr>
+                        <tr>
+                            <td><code>true</code></td>
+                            <td><code>false</code></td>
+                            <td><code>false</code></td>
+                        </tr>
+                        <tr>
+                            <td><code>true</code></td>
+                            <td><code>true</code></td>
+                            <td><code>true</code></td>
+                        </tr>
+                    </table>
+                </td>
+
+                <td>
+                    <table style="margin: 2%; border: 1px solid black; border-collapse: collapse;" border="1">
+                        <tr style="font-weight: bold">
+                            <td>A</td> <td><code>not</code> A</td>
+                        </tr>
+                        <tr>
+                            <td><code>true</code></td>
+                            <td><code>false</code></td>
+                        </tr>
+                        <tr>
+                            <td><code>false</code></td>
+                            <td><code>true</code></td>
+                        </tr>
+                    </table>
+                </td>
+            </tr>
+        </table>
+
+        <p>
+            A truth table shows all possible combinations of input to the
+            operators and the corresponding evaluation.
+        </p>
+    </body>
+</html>

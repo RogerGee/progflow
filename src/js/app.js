@@ -94,6 +94,8 @@ function initPage() {
     mainPanel.addButtonB("save",buttonSave);
     mainPanel.addButtonB("open in new tab",buttonOpenInNewTab);
     mainPanel.addButtonB("close project",buttonCloseProject);
+    mainPanel.addButtonB("help pages",buttonHelp);
+    mainPanel.addButtonB("about ProgFlow",buttonAbout);
     mainPanel.addBreak();
     mainPanel.addButtonA("oper",buttonMakeOperationNode);
     mainPanel.addButtonA("in",buttonMakeInNode);
@@ -107,7 +109,7 @@ function initPage() {
     mainPanel.addButtonB("Python");
     mainPanel.addButtonB("exec",buttonExec);
     mainPanel.addButtonB("trace");
-    mainPanel.addButtonB("reset");
+    mainPanel.addButtonB("clear",buttonClearTerminal);
     mainPanel.addBreak();
 
     // add the two sub-panels to the control panel
@@ -116,7 +118,7 @@ function initPage() {
 
     // create terminal content
     terminal = new Terminal(terminalView);
-    terminal.addLine(PROGNAME + " " + VERSION + " by Roger Gee");
+    terminal.addLine(PROGNAME + " " + VERSION);
     terminal.addLine(AGENTINFO);
 
     // create canvas and render context
@@ -145,7 +147,7 @@ function resizePage() {
 // Button handlers for main UI
 ////////////////////////////////////////////////////////////////////////////////
 
-function buttonNew(e) {
+function buttonNew() {
     // overwrite the current context with another one
     var canvas = document.getElementById("canvas-main");
     var canvasView = document.getElementById("div-canvas-view");
@@ -163,17 +165,17 @@ function buttonNew(e) {
     context.drawScreen();
 }
 
-function buttonSave(e) {
+function buttonSave() {
     // generate a savable representation of the program and download it as a
     // data-URL
 
 }
 
-function buttonOpenInNewTab(e) {
+function buttonOpenInNewTab() {
 
 }
 
-function buttonCloseProject(e) {
+function buttonCloseProject() {
     // this is really just to help OCD people clear the screen
     var canvas = document.getElementById("canvas-main");
     var canvasView = document.getElementById("div-canvas-view");
@@ -184,32 +186,46 @@ function buttonCloseProject(e) {
     nodePanel.innerHTML = '';
 }
 
-function buttonMakeOperationNode(e) {
+function buttonAbout() {
+    var aboutPage = new Page('pages/about.html');
+    aboutPage.show();
+}
+
+function buttonHelp() {
+    var helpPage = new Page('pages/help.html');
+    helpPage.show();
+}
+
+function buttonMakeOperationNode() {
     // add an operation node to the context
     context.addNode('flowoperation',DEFAULT_OPERATION);
 }
 
-function buttonMakeInNode(e) {
+function buttonMakeInNode() {
     context.addNode('flowin',"");
 }
 
-function buttonMakeOutNode(e) {
+function buttonMakeOutNode() {
     context.addNode('flowout',"");
 }
 
-function buttonMakeIfNode(e) {
+function buttonMakeIfNode() {
     context.addNode('flowif',"");
 }
 
-function buttonMakeProcNode(e) {
+function buttonMakeProcNode() {
     // add a procedure node whose name is unique
 
 }
 
-function buttonExec(e) {
+function buttonExec() {
     var logic = context.topLevelLogic();
 
     logic.exec();
+}
+
+function buttonClearTerminal() {
+    terminal.clearScreen();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

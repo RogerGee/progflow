@@ -76,6 +76,7 @@ function Terminal(parentNode) {
     parentNode.onfocus = onFocus;
     parentNode.onblur = onBlur;
     parentNode.onkeypress = onKeyPress;
+    parentNode.onkeydown = onKeyDown;
 
     // onFocus() - handle changes when the terminal is focused
     function onFocus(e) {
@@ -87,28 +88,17 @@ function Terminal(parentNode) {
         cursor.className = 'terminal-cursor terminal-cursor-nofocus';
     }
 
-    // onKeyPress() - handle input key presses for text entry and control
-    function onKeyPress(e) {
-        // do not handle key presses if not in input mode
-        if (!imode) {
-            return;
-        }
+    // specialKey() - handle special key events
+    function specialKey(e) {
+        var code = 'which' in e ? e.which : e.keyCode;
 
-        if (e.charCode != 0) { // printable character
-            // insert character it into the input line text variable and also
-            // update the span's elements for display
-            var before = itext.substr(0,ipos) + e.key; // insert before cursor
-            var after = itext.substr(ipos,itext.length - ipos);
-            itext = before + after;
-            ispanBefore.data = before;
-            ispanAfter.data = after.substr(1); // skip cursor character
-            ipos += 1;
-        }
-        else if (e.keyCode == KEYCODES.ENTER) {
+        if (code == KEYCODES.ENTER) {
             e.preventDefault();
             imodeCb(endInputMode());
+
+            return true;
         }
-        else if (e.keyCode == KEYCODES.LEFT) {
+        else if (code == KEYCODES.LEFT) {
             // move the cursor left one position (if possible)
             if (ipos > 0) {
                 ipos -= 1;
@@ -121,8 +111,10 @@ function Terminal(parentNode) {
                 ispanAfter.data = after.substr(1);
                 cursorText.data = after[0];
             }
+
+            return true;
         }
-        else if (e.keyCode == KEYCODES.RIGHT) {
+        else if (code == KEYCODES.RIGHT) {
             // move the cursor right one position (if possible); the cursor may
             // sit at the first invalid position after the input text (where text
             // may be appended to the line)
@@ -137,12 +129,16 @@ function Terminal(parentNode) {
                 ispanAfter.data = after.substr(1);
                 cursorText.data = ipos >= itext.length ? ' ' : after[0];
             }
+
+            return true;
         }
-        else if (e.keyCode == KEYCODES.UP || e.keyCode == KEYCODES.DOWN) {
+        else if (code == KEYCODES.UP || code == KEYCODES.DOWN) {
             // no action as of now
             e.preventDefault();
+
+            return true;
         }
-        else if (e.keyCode == KEYCODES.BACKSPACE) {
+        else if (code == KEYCODES.BACKSPACE) {
             // move the cursor back a position and remove the character at that
             // position
             if (ipos > 0) {
@@ -155,20 +151,65 @@ function Terminal(parentNode) {
                 itext = before + after;
                 cursorText.data = ipos >= itext.length ? ' ' : after[0];
             }
+
+            // prevent the browser from being stupid and navigating back
+            e.preventDefault();
+
+            return true;
         }
-        else if (e.keyCode == KEYCODES.HOME) {
+        else if (code == KEYCODES.HOME) {
             // place cursor at the beginning of a line
             ipos = 0;
             ispanBefore.data = "";
             ispanAfter.data = itext.substr(1);
             cursorText.data = itext[0];
+
+            return true;
         }
-        else if (e.keyCode == KEYCODES.END) {
+        else if (code == KEYCODES.END) {
             // place cursor at the end of a line
             ipos = itext.length;
             ispanBefore.data = itext;
             ispanAfter.data = "";
             cursorText.data = " ";
+
+            return true;
+        }
+
+        return false;
+    }
+
+    // onKeyDown() - some browsers require key down events for special keys
+    function onKeyDown(e) {
+        // do not handle key events when not in input mode
+        if (!imode) {
+            return;
+        }
+
+        // only handle special keys here
+        specialKey(e);
+    }
+
+    // onKeyPress() - handle input key presses for text entry and control
+    function onKeyPress(e) {
+        var code = 'which' in e ? e.which : e.keyCode;
+
+        // do not handle key presses if not in input mode
+        if (!imode) {
+            return;
+        }
+
+        // code should be zero if non-printing; filter out <enter> since it is
+        // non-printing for our application
+        if (code != 0 && code != KEYCODES.ENTER) {
+            // insert character it into the input line text variable and also
+            // update the span's elements for display
+            var before = itext.substr(0,ipos) + String.fromCharCode(code); // insert before cursor
+            var after = itext.substr(ipos,itext.length - ipos);
+            itext = before + after;
+            ispanBefore.data = before;
+            ispanAfter.data = after.substr(1); // skip cursor character
+            ipos += 1;
         }
     }
 
@@ -236,6 +277,10 @@ function Terminal(parentNode) {
         }
     }
     this.cancelInput = cancelInput;
+
+    this.clearScreen = function() {
+        termDiv.innerHTML = '';
+    }
 }
 
 // enumerate useful keycodes
