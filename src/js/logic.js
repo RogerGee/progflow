@@ -15,9 +15,18 @@ function FlowBlockLogic(visual,block) {
 
     // createVariable() - create new variable (name must not be in use in this
     // scope)
-    function createVariable(name) {
+    function createVariable(name,index) {
         if (typeof locals[name] == "undefined") {
-            locals[name] = 0; // default type is 0
+            // create variable; the default value is zero
+            var nv;
+            if (typeof index != 'undefined') {
+                nv = {};
+                nv[index] = 0;
+            }
+            else
+                nv = {value: 0};
+
+            locals[name] = nv;
             return true;
         }
 
@@ -29,6 +38,7 @@ function FlowBlockLogic(visual,block) {
     function renameVariable(name,newname) {
         if (typeof locals[name] != "undefined") {
             if (createVariable(newname)) {
+                locals[newname] = locals[name];
                 delete locals[name];
                 return true;
             }
@@ -39,42 +49,52 @@ function FlowBlockLogic(visual,block) {
 
     // lookupVariable() - look up value of variable; must already be in use either
     // in this scope or in an outer scope
-    function lookupVariable(name) {
+    function lookupVariable(name,index) {
         if (typeof locals[name] == "undefined") {
             if (block != null)
-                return block.lookupVariable(name);
+                return block.lookupVariable(name,index);
 
             return null;
         }
 
-        return locals[name];
+        if (typeof index != 'undefined')
+            return locals[name][index];
+        return locals[name].value; // may be undefined
     }
 
     // updateVariable() - update existing variable value; this looks into an
     // overlapping (i.e. outer) scope to potentially update a variable
-    function updateVariable(name,value) {
+    function updateVariable(name,value,index) {
         if (typeof locals[name] == "undefined") {
             if (block != null)
-                return block.updateVariable(name,value);
+                return block.updateVariable(name,value,index);
 
             return false;
         }
 
-        locals[name] = value;
+        if (typeof index != 'undefined')
+            locals[name][index] = value;
+        else
+            locals[name].value = value;
         return true;
     }
 
     // updateCreateVariable() - update existing variable value or create new
     // variable with value
-    function updateCreateVariable(name,value) {
+    function updateCreateVariable(name,value,index) {
         if (typeof locals[name] == "undefined") {
             // make sure name isn't in use in a wider scope
-            if (block != null && block.updateVariable(name,value))
+            if (block != null && block.updateVariable(name,value,index))
                 return;
 
-            // let control fall through to create new variable
+            createVariable(name,index);
+            // let control fall through to update new variable
         }
-        locals[name] = value;
+
+        if (typeof index != 'undefined')
+            locals[name][index] = value;
+        else
+            locals[name].value = value;
     }
 
     // findBlock() - searches for the named block at or above this level
@@ -377,6 +397,7 @@ function FlowIfLogic(visual,block) {
 
 const SPACESEP_REGEX = /[^\s]+/g;
 const FORMAT_TOKEN_REGEX = /%[a-zA-Z_][a-zA-Z_0-9]*/g;
+const FORMAT_EXPR_GRAB_REGEX = /%{(.+)}/g;
 
 function FormatString(fs) {
     this.fs = fs;
@@ -386,44 +407,104 @@ FormatString.prototype.output = function(block) {
     var output = "", last = 0;
     var errors = [];
     FORMAT_TOKEN_REGEX.lastIndex = 0;
+    FORMAT_EXPR_GRAB_REGEX.lastIndex = 0;
     while (true) {
-        var m = FORMAT_TOKEN_REGEX.exec(this.fs);
-        if (!m)
+        var m = FORMAT_TOKEN_REGEX.exec(this.fs); // simple variable name
+        var n = FORMAT_EXPR_GRAB_REGEX.exec(this.fs); // output expression
+
+        if (!m && !n)
             break;
-        output += this.fs.substring(last,m.index);
 
-        // grab the variable name by stripping off the leading '%' sign; then
-        // lookup the variable's value
-        var vname = m[0].substring(1);
-        var value = block.lookupVariable(vname);
-        if (value == null) {
-            output += "'?'";
-            errors.push("variable '" + vname + "' is undefined");
-        }
-        else {
-            output += String(value);
-        }
+        while (true) {
+            if (m && (!n || n.index >= m.index)) {
+                output += this.fs.substring(last,m.index);
 
-        last = m.index + m[0].length;
+                // grab the variable name by stripping off the leading '%' sign; then
+                // lookup the variable's value
+                var vname = m[0].substring(1);
+                var value = block.lookupVariable(vname);
+                if (value == null) {
+                    output += "'?'";
+                    errors.push("variable '" + vname + "' is undefined");
+                }
+                else {
+                    output += String(value);
+                }
+
+                last = m.index + m[0].length;
+                m = null;
+            }
+            else if (n) {
+                output += this.fs.substring(last,n.index);
+
+                // parse the contents of the first captured group as an expression
+                var expr = new ExpressionParser(n[1],false,false);
+                if (expr.error()) {
+                    output += "'?'";
+                    errors.push(expr.errorMsg());
+                }
+                else {
+                    // evaluate the expression
+                    try {
+                        output += String(expr.evaluate(block));
+                    } catch (e) {
+                        output += "'?'";
+                        errors.push(e);
+                    }
+                }
+
+                last = n.index + n[0].length;
+                n = null;
+            }
+            else
+                break;
+        }
     }
     output += this.fs.substring(last,this.fs.length);
 
+    // we consider the output block errors to be warnings
     for (var e of errors)
         terminal.addLine("output block: warning: " + e,'warning-line');
     terminal.addLine(output);
 };
 
 FormatString.prototype.input = function(block,next) {
-    var things = [], last = 0;
+    var things = [], last = 0, errors = [];
     FORMAT_TOKEN_REGEX.lastIndex = 0;
-    this.errors = [];
+    FORMAT_EXPR_GRAB_REGEX.lastIndex = 0;
     while (true) {
-        var m = FORMAT_TOKEN_REGEX.exec(this.fs);
-        if (!m)
+        var m = FORMAT_TOKEN_REGEX.exec(this.fs); // simple variable assignment
+        var n = FORMAT_EXPR_GRAB_REGEX.exec(this.fs); // l-val from expression
+        if (!m && !n)
             break;
-        things.push({s:this.fs.substring(last,m.index)}); // prompt text
-        things.push({v:m[0].substring(1)}); // variable
-        last = m.index + m[0].length;
+
+        while (true) {
+            if (m && (!n || n.index >= m.index)) {
+                things.push({s:this.fs.substring(last,m.index)}); // prompt text
+                things.push({v:m[0].substring(1)}); // variable
+                last = m.index + m[0].length;
+                m = null;
+            }
+            else if (n) {
+                var expr = new ExpressionParser(n[1],false,false);
+                things.push({s:this.fs.substring(last,n.index)}); // prompt text
+                if (expr.error()) {
+                    errors.push("parse error: " + expr.errorMsg());
+                }
+                else if (typeof expr.parseTree().root.lval == 'undefined') {
+                    // the expression must evaluate to an l-value
+                    errors.push("expression '" + expr.expr() + "' is not assignable");
+                }
+                else {
+                    // add the expression that will generate an l-value
+                    things.push({e:expr});
+                }
+                last = n.index + n[0].length;
+                n = null;
+            }
+            else
+                break;
+        }
     }
     var final = this.fs.substring(last,this.fs.length);
     if (final != "")
@@ -441,37 +522,42 @@ FormatString.prototype.input = function(block,next) {
                 ln.addText(this.things[this.iter++].s);
                 ln.finish(false);
             }
-            else if (typeof this.things[this.iter].v != 'undefined') {
-                var vname = this.things[this.iter++].v;
-                var done = this.iter >= this.things.length;
+            else {
+                var done = this.iter+1 >= this.things.length;
                 if (this.extra.length > 0) {
                     // use tokens that were previously read
-                    block.updateCreateVariable(vname,Number(this.extra[0]));
+                    inputRequest(this.extra[0]);
                     this.extra.splice(0,1); // consume token
+
+                    // if we are done with the input operation, call the
+                    // 'next' callback; otherwise make a recursive call
                     if (done)
-                        next();
+                        next(); // original callback
                     else
                         this.next();
                 }
                 else {
                     var obj = this;
                     terminal.inputMode(function(ttext){
-                        var ts = ttext.match(SPACESEP_REGEX);
-                        if (!ts) {
-                            // exception!
-                            terminal.addLine("input block: input sequence was empty",'error-line');
-                            return;
-                        }
+                        try {
+                            var ts = ttext.match(SPACESEP_REGEX);
+                            if (!ts) {
+                                throw "input sequence was empty";
+                            }
 
-                        // update variable value (or create if not seen); save
-                        // any extra tokens for a future operation
-                        block.updateCreateVariable(vname,Number(ts[0]));
-                        obj.extra = obj.extra.concat(ts.slice(1));
+                            // update variable value (or create if not seen); save
+                            // any extra tokens for a future operation
+                            obj.inputRequest(ts[0]);
+                            obj.extra = obj.extra.concat(ts.slice(1));
+                        } catch (e) {
+                            terminal.addLine("input block: error: " + e,'error-line');
+                            return; // don't call 'next' since this is an error
+                        }
 
                         // if we are done with the input operation, call the
                         // 'next' callback; otherwise make a recursive call
                         if (done)
-                            next();
+                            next(); // original callback
                         else
                             obj.next();
                     });
@@ -480,13 +566,33 @@ FormatString.prototype.input = function(block,next) {
                 // the callback will handle the rest of the operation
                 return;
             }
-            else
-                this.iter += 1;
+        }
+    };
+    cb.prototype.inputRequest = function(tok) {
+        // consume an input request (aka a 'thing') and process it
+        var thing = this.things[this.iter++];
+
+        if ('v' in thing) {
+            block.updateCreateVariable(thing.v,Number(tok));
+        }
+        else if ('e' in thing) {
+            thing.e.parseTree().root.lval(block)(Number(tok));
         }
     };
 
-    var o = new cb();
-    o.next();
+    if (errors.length > 0) {
+        for (var e of errors)
+            terminal.addLine("input block: error: " + e,'error-line');
+        // cause the simulation to fail by not calling 'next'
+    }
+    else {
+        try {
+            var o = new cb();
+            o.next();
+        } catch (e) {
+            terminal.addLine("input block: error: " + e,'error-line');
+        }
+    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -497,8 +603,8 @@ FormatString.prototype.input = function(block,next) {
 // regular expressions for lexing
 const IDENT_REGEX = /[a-zA-Z_][a-zA-Z_0-9]*/;
 const NUMER_REGEX = /[0-9]*(?:\.?[0-9]+)/;
-const SYMBOL_REGEX = /\(|\)|\+|-|\*|\/|\^|,|==|=|<=|>=|<>|<|>/; // list longest strings first
-const EXPR_REGEX = /([a-zA-Z_][a-zA-Z_0-9]*)|([0-9]*(?:\.?[0-9]+))|(\(|\)|\+|-|\*|\/\/|\/|\^|,|==|=|<=|>=|<>|<|>)/g;
+const SYMBOL_REGEX = /\(|\)|\[|\]|\+|-|\*|\/|\^|,|==|=|<=|>=|<>|<|>/; // list longest strings first
+const EXPR_REGEX = /([a-zA-Z_][a-zA-Z_0-9]*)|([0-9]*(?:\.?[0-9]+))|(\(|\)|\[|\]|\+|-|\*|\/\/|\/|\^|,|==|=|<=|>=|<>|<|>)/g;
 
 // expression types for evaluation
 AssignmentExpressionNode = function(left,right) {
@@ -591,9 +697,10 @@ FunctionCallExpressionNode = function(left,right) {
     this.right = right;
     this.kind = 'function-call';
 };
-IdentifierNode = function(tok) {
+IdentifierNode = function(tok,index) {
     this.id = tok.text;
     this.kind = 'identifier';
+    this.index = index;
 };
 NumberNode = function(tok) {
     this.value = Number(tok.text);
@@ -683,7 +790,10 @@ IdentifierNode.prototype.eval = function(block) {
     if (this.id == 'false')
         return false;
 
-    var v = block.lookupVariable(this.id);
+    // lookup variable based on identifier and index; index may be undefined
+    if (typeof this.index != 'undefined')
+        var index = Math.floor(this.index.eval(block));
+    var v = block.lookupVariable(this.id,index);
     if (v == null) {
         throw "'" + this + "': variable is undefined";
     }
@@ -692,7 +802,9 @@ IdentifierNode.prototype.eval = function(block) {
 };
 IdentifierNode.prototype.lval = function(block) {
     var id = this.id;
-    return function(val) { block.updateCreateVariable(id,val); };
+    if (typeof this.index != 'undefined')
+        var index = Math.floor(this.index.eval(block));
+    return function(val) { block.updateCreateVariable(id,val,index); };
 };
 NumberNode.prototype.eval = function(block) {
     return this.value; // that was easy
@@ -751,6 +863,8 @@ NotExpressionNode.prototype.toString = function() {
     return 'not ' + this.left;
 };
 IdentifierNode.prototype.toString = function() {
+    if (typeof this.index != 'undefined')
+        return this.id + '[' + this.index + ']';
     return this.id;
 };
 NumberNode.prototype.toString = function() {
@@ -1075,8 +1189,16 @@ function ExpressionParser(expr,allowBoolean,allowAssignment) {
     }
     function primaryExpression(node) {
         var ex;
-        if (ex = matchToken('identifier'))
+        if (ex = matchToken('identifier')) {
+            if (matchToken('symbol','[')) {
+                var index = expression();
+                if (!matchToken('symbol',']')) {
+                    throw "expected matching ']' for indexed variable";
+                }
+                return new IdentifierNode(ex,index);
+            }
             return new IdentifierNode(ex);
+        }
 
         if (ex = matchToken('number'))
             return new NumberNode(ex);
@@ -1090,10 +1212,14 @@ function ExpressionParser(expr,allowBoolean,allowAssignment) {
             return newnode;
         }
 
-        throw "cannot understand token: '" + toks[iter].text + "'";
+        if (iter < toks.length)
+            throw "cannot understand token: '" + toks[iter].text + "'";
+        throw "expected token after '" + toks[toks.length-1].text + "'";
     }
 
     function evaluate(block) {
+        if (parseTree.empty)
+            return; // nothing to do
         if (typeof parseTree.root == 'undefined')
             throw "the expression was malformed";
 

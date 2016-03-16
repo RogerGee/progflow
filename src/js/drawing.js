@@ -175,6 +175,8 @@ function DrawingContext(canvas,canvasView,programName) {
             center = false;
         }
 
+        // we need to scale the coordinate space in order to obtain the correct
+        // max width and font height (i.e. sizes)
         var sx = canvas.width / 2;
         var sy = canvas.height / currentBlock.getHeight();
 
@@ -186,11 +188,16 @@ function DrawingContext(canvas,canvasView,programName) {
         }
         ctx.textBaseline = "middle"; // thank God for this
 
+        // scale the context to undo the initial transformations; make sure
+        // the scaling doesn't affect the specified text position
         ctx.save();
         ctx.scale(1/sx,1/sy);
         x *= sx; y *= sy;
-        maxWidth *= sx;
+        maxWidth *= sx; // this value converted to "scaled pixels"
 
+        // the font is specified in pixels that are scaled; the transformations
+        // take the font height from the calling context's coordinate space and
+        // transforms it into units of "scaled pixels"
         var fontSz = fontHeight * sy;
         ctx.font = fontSz + "px " + DEFAULT_FONT;
         ctx.fillText(txt,x,y,maxWidth);
@@ -198,6 +205,9 @@ function DrawingContext(canvas,canvasView,programName) {
         ctx.restore();
     }
 
+    // textWidth() - determine the width of a line of text (i.e. the text that
+    // would be drawn with drawText()); the resulting width is in units of the
+    // current coordinate space
     function textWidth(txt,fontHeight) {
         var w;
         var sx = canvas.width / 2;

@@ -90,6 +90,12 @@
         </p>
 
         <p>
+            If an operation block is empty, it will read <code>nop</code>, which
+            means <i>no operation</i>. As you may have guessed, this means the
+            operation block will do absolutely nothing when it is executed.
+        </p>
+
+        <p>
             An operation block expression <i>cannot</i> produce Boolean (i.e. truth)
             values. This means you cannot use operators such as <code> &lt; </code>
             or <code> or </code> (no pun there). See <a href="help-cond.html">
