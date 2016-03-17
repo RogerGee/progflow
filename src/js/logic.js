@@ -150,9 +150,9 @@ function FlowBlockLogic(visual,block) {
         var nx = function() {
             var child = visual.nextChild(it);
             if (child == null) {
-                // we have executed every single child in the simulation; call
-                // the 'next' callback to continue
-                args.next();
+                // we have executed every single child in the simulation
+                locals = stack.pop(); // undo stack frame
+                args.next(); // call the 'next' callback to continue
                 return;
             }
 
@@ -170,8 +170,6 @@ function FlowBlockLogic(visual,block) {
             next: nx
         };
         nx();
-
-        locals = stack.pop();
     }
 
     ////////////////////////////////////////////////////////////////////////////
@@ -370,15 +368,105 @@ function FlowIfLogic(visual,block) {
     }
 
     function exec(args) {
-        // we implement the if-statement with an if-statement: go figure
+        // we implement the if-statement with an if-statement: go figure; there
+        // is no need to call next ourselves since we are a control structure and
+        // redirect control somewhere else
+
         if (expr.evaluate(block)) {
             visual.getTruePart().getLogic().exec(args);
         }
         else {
             visual.getFalsePart().getLogic().exec(args);
         }
+    }
 
-        args.next();
+    ////////////////////////////////////////////////////////////////////////////
+    // Initialization
+    ////////////////////////////////////////////////////////////////////////////
+
+    this.ontoggle = ontoggle;
+    this.exec = exec;
+
+    visual.setLabel(expr.expr());
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// FlowWhileLogic
+////////////////////////////////////////////////////////////////////////////////
+
+function FlowWhileLogic(visual,block) {
+    var expr = new ExpressionParser("false",true,false);
+
+    ////////////////////////////////////////////////////////////////////////////
+    // Functions
+    ////////////////////////////////////////////////////////////////////////////
+
+    function ontoggle(state) {
+        if (!state) {
+            // reset
+            nodePanel.innerHTML = '';
+            return;
+        }
+
+        nodePanel.addLabel("Edit While Condition:",true);
+        nodePanel.addBreak(false);
+        nodePanel.addLabel("Condition:");
+        nodePanel.addTextField('flow-whilecond-entry',1024,expr.expr());
+        nodePanel.addBreak(false);
+        nodePanel.addButtonB('submit',function(){
+            var newstr = nodePanel.getElementValue('flow-whilecond-entry');
+            var newexpr = new ExpressionParser(newstr,true,false);
+            if (!newexpr.error()) {
+                if (newexpr.empty()) {
+                    terminal.addLine("while block: condition: must not be empty",
+                        'error-line');
+                    return;
+                }
+                if (newexpr.parseTree().root.typeOf() != 'boolean') {
+                    terminal.addLine("while block: condition: expression must evaluate"
+                        + " to a Boolean value",'error-line');
+                    return; // take no action
+                }
+                expr = newexpr;
+                visual.setLabel(newstr);
+                visual.ontoggle();
+                context.drawScreen();
+            }
+            else { // take no action
+                var msg = "while block: parse error: " + newstr;
+                var parseError = newexpr.errorMsg();
+                if (parseError != "")
+                    msg += ": " + parseError;
+                terminal.addLine(msg,'error-line');
+            }
+        });
+    }
+
+    function exec(args) {
+        // we must try our best to prevent an infinite loop; to do this, we give
+        // the loop 5 seconds of execution time before killing it
+
+        var cond;
+        var newargs;
+        var fn = function() {
+            // perform one loop iteration
+            try {
+                if (cond = expr.evaluate(block)) {
+                    visual.getBody().getLogic().exec(newargs);
+                }
+            } catch (e) {
+                terminal.addLine("while block: error: "+e,'error-line');
+                return;
+            }
+
+            // if the while loop is finished running (i.e. its condition was false),
+            // then continue on to the next node in the simulation
+            if (!cond)
+                args.next();
+        };
+        newargs = {next: fn};
+
+        fn();
     }
 
     ////////////////////////////////////////////////////////////////////////////

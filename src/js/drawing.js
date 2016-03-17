@@ -299,6 +299,9 @@ function DrawingContext(canvas,canvasView,programName) {
         else if (kind == 'flowif') {
             node = new FlowIfVisual(ctx,label,currentBlock.getLogic());
         }
+        else if (kind == 'flowwhile') {
+            node = new FlowWhileVisual(ctx,label,currentBlock.getLogic());
+        }
 
         if (node != null) {
             currentBlock.addChild(node);
@@ -943,7 +946,6 @@ function FlowIfVisual(ctx,label,block) {
 
         var w = getBounds('right') - getBounds('left');
         ctx.drawText('if',0,-0.15,w,0.25,true);
-        var text = label == "" ? "false" : label;
         ctx.drawText(label,0,0.5,w,0.25,true);
 
         // draw true and false blocks as well as lower lines after the blocks
@@ -968,6 +970,7 @@ function FlowIfVisual(ctx,label,block) {
         ctx.translate(4,0); // translate to center for 'falsePart'
         ctx.drawLine([0,y3],[0,y2]);
         ctx.drawLine([0,y2],[-4,y2]);
+        ctx.drawLine([-2,y2],[-2,y2+0.15]);
 
         falsePart.draw();
         ctx.restore();
@@ -997,12 +1000,8 @@ function FlowIfVisual(ctx,label,block) {
     function getBounds(kind) {
         if (kind == "upper" || kind == "arrowUpper")
             return -0.95;
-        if (kind == "lower")
-            return getHeight(); // subtract out to get coordinate
-        if (kind == "arrowLower") {
-            // there are multiple connections in the lower bound
+        if (kind == "lower" || kind == "arrowLower")
             return getHeight()-1;
-        }
         if (kind == "left")
             return -.95;
         if (kind == "right")
@@ -1039,4 +1038,119 @@ function FlowIfVisual(ctx,label,block) {
     this.type = 'if';
 
     logic = new FlowIfLogic(this,block);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// FlowWhileVisual
+////////////////////////////////////////////////////////////////////////////////
+
+function FlowWhileVisual(ctx,label,block) {
+    var selected = false;
+    var logic;
+    var body = new FlowBlockVisual(ctx,"loop-body",block);
+
+    ////////////////////////////////////////////////////////////////////////////
+    // Functions
+    ////////////////////////////////////////////////////////////////////////////
+
+    function draw() {
+        ctx.drawPolygon(getBounds());
+        ctx.save();
+        ctx.setTransform(1,0,0,1,0,0);
+        if (selected) {
+            ctx.fillStyle = SELECT_COLOR;
+            ctx.globalAlpha = SELECT_ALPHA;
+            ctx.fill();
+            ctx.globalAlpha = 1.0;
+        }
+        ctx.lineWidth = 1.0;
+        ctx.stroke();
+        ctx.restore();
+
+        var w = getBounds('right') - getBounds('left');
+        ctx.drawText('while',0,-0.15,w,0.25,true);
+        ctx.drawText(label,0,0.5,w,0.25,true);
+
+        // draw arrow from while block to body block
+        ctx.save();
+        ctx.drawLine([1,0.5],[2,0.5]);
+        ctx.save();
+        ctx.scale(3,3); // undo our parent's ONE_THIRD scaling to make arrow head
+                        // size consistent with parent's rendering
+        ctx.drawArrow([2/3,0.5/3],[2/3,2/3]);
+        ctx.restore();
+
+        // draw the body
+        ctx.translate(2,3);
+        body.draw();
+
+        // draw the loop arrow
+        var y1, y2
+        y1 = body.getBounds('lower');
+        y2 = getBounds('lower')-3;
+        ctx.drawLine([0,y1],[0,y2]);
+        ctx.drawLine([0,y2],[-1.5,y2]);
+        ctx.drawLine([-2,y2+0.15],[-2,-1]);
+        ctx.scale(3,3);
+        ctx.drawArrow([-1.5/3,y2/3],[-1.5/3,-ONE_THIRD]);
+        ctx.restore();
+    }
+
+    function ontoggle() {
+        selected = !selected;
+        logic.ontoggle(selected);
+    }
+
+    function onclick(x,y) {
+        // run pnpoly to see if the shape was clicked
+        if (pnpoly(getBounds(),x,y))
+            return this;
+
+        // see if the body was clicked
+        return body.onclick(x-2,y-3);
+    }
+
+    function getHeight() {
+        return 4 + body.getHeight();
+    }
+
+    function getBounds(kind) {
+        if (kind == "upper" || kind == "arrowUpper")
+            return -0.95;
+        if (kind == "lower" || kind == "arrowLower")
+            return getHeight()-1;
+        if (kind == "left")
+            return -.95;
+        if (kind == "right")
+            return .95;
+        if (typeof kind == "undefined")
+            return [-.95,0.5,0.0,-0.95,.95,0.5,0.0,1.95];
+        return null;
+    }
+
+    // setHeightChangeCallback() - we need to know what to do when we resize; we
+    // resize only when body resizes
+    function setHeightChangeCallback(callback) {
+        // pass the callback along to the sub blocks
+        body.setHeightChangeCallback(callback);
+    }
+
+    ////////////////////////////////////////////////////////////////////////////
+    // Initialization
+    ////////////////////////////////////////////////////////////////////////////
+
+    this.draw = draw;
+    this.ontoggle = ontoggle;
+    this.onclick = onclick;
+    this.getHeight = getHeight;
+    this.getBounds = getBounds;
+    this.setHeightChangeCallback = setHeightChangeCallback;
+    this.isToggled = function(){return selected;};
+    this.getLogic = function(){return logic;};
+    this.getLabel = function(){return label;};
+    this.setLabel = function(text){label = text;};
+    this.getBody = function(){return body;};
+    this.type = 'while';
+
+    logic = new FlowWhileLogic(this,block);
 }
