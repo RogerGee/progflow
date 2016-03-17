@@ -41,6 +41,7 @@ html, body {
 .terminal-view {
     border-top: 2px solid black;
     height: 33%;
+    background-color: #111;
 }
 
 .control-panel-button-a {

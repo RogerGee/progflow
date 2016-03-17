@@ -138,7 +138,8 @@ function FlowBlockLogic(visual,block) {
         // create 'args' if it does not exist (it shouldn't for an initial call)
         if (typeof args == 'undefined') {
             args = {
-                next: function(){} // does nothing
+                next: Function.prototype, // does nothing
+                exited: false // is the simulator exiting abnormally?
             }
         }
 
@@ -153,21 +154,28 @@ function FlowBlockLogic(visual,block) {
                 // we have executed every single child in the simulation
                 locals = stack.pop(); // undo stack frame
                 args.next(); // call the 'next' callback to continue
+                args.exited = false; // we can't be exiting if this was called
                 return;
             }
 
             var logic = child.getLogic(); // get logic node via visual
             var ret = logic.exec(newargs); // pass the child node a reference to ourself
 
+            // copy exit status; if we did exit, then newargs won't be manipulated
+            // until the simulator is restarted (e.g. by an input event)
+            args.exited = newargs.exited;
+            newargs.exited = false;
+
             // if the return value is defined, call the 'next' function to continue; a
             // return structure should therefore not call its next callback
-            if (typeof ret != 'undefined')
+            if (typeof ret != 'undefined' && !args.exited)
                 args.next(ret);
 
             return ret;
         };
         var newargs = {
-            next: nx
+            next: nx,
+            exited: false
         };
         nx();
     }
@@ -253,6 +261,7 @@ function FlowOperationLogic(visual,block) {
             // the expression evaluation can throw errors; this stops the
             // execution of the program
             terminal.addLine('operation-block: eval error: '+e,'error-line');
+            args.exited = true;
         }
     }
 
@@ -299,7 +308,8 @@ function FlowInOutLogic(visual,block,param) {
 
     function exec(args) {
         if (param == 'in') {
-            formatString.input(block,args.next);
+            // input may "block" which causes the simulator to exit
+            args.exited = formatString.input(block,args.next);
         }
         else {
             formatString.output(block);
@@ -443,20 +453,33 @@ function FlowWhileLogic(visual,block) {
     }
 
     function exec(args) {
-        // we must try our best to prevent an infinite loop; to do this, we give
-        // the loop 5 seconds of execution time before killing it
-
-        var cond;
+        // we must try our best to prevent an infinite loop
         var newargs;
         var fn = function() {
-            // perform one loop iteration
+            var cond;
+
+            // swap next and restart
+            var t = newargs.next;
+            newargs.next = newargs.restart;
+            newargs.restart = t;
+
             try {
-                if (cond = expr.evaluate(block)) {
+                // perform loop iterations
+                while (cond = expr.evaluate(block)) {
                     visual.getBody().getLogic().exec(newargs);
+                    if (newargs.exited) {
+                        var t = newargs.next;
+                        newargs.next = newargs.restart;
+                        newargs.restart = t;
+                        return;
+                    }
+                    if (newargs.iters <= 0)
+                        throw "execution limit exceeded";
+                    newargs.iters -= 1;
                 }
             } catch (e) {
-                terminal.addLine("while block: error: "+e,'error-line');
-                return;
+                terminal.addLine('while block: error: '+e,'error-line');
+                args.exited = true;
             }
 
             // if the while loop is finished running (i.e. its condition was false),
@@ -464,9 +487,15 @@ function FlowWhileLogic(visual,block) {
             if (!cond)
                 args.next();
         };
-        newargs = {next: fn};
+        newargs = {
+            next: fn,
+            exited: false,
+            restart: Function.prototype, // nop
+            iters: 100000
+        };
 
         fn();
+        args.exited = newargs.exited;
     }
 
     ////////////////////////////////////////////////////////////////////////////
@@ -623,36 +652,39 @@ FormatString.prototype.input = function(block,next) {
                         next(); // original callback
                     else
                         this.next();
-                }
-                else {
-                    var obj = this;
-                    terminal.inputMode(function(ttext){
-                        try {
-                            var ts = ttext.match(SPACESEP_REGEX);
-                            if (!ts) {
-                                throw "input sequence was empty";
-                            }
 
-                            // update variable value (or create if not seen); save
-                            // any extra tokens for a future operation
-                            obj.inputRequest(ts[0]);
-                            obj.extra = obj.extra.concat(ts.slice(1));
-                        } catch (e) {
-                            terminal.addLine("input block: error: " + e,'error-line');
-                            return; // don't call 'next' since this is an error
+                    // the callback handled the rest of the operation
+                    return false;
+                }
+
+                var obj = this;
+                terminal.inputMode(function(ttext){
+                    // we need to have this try block since this is called
+                    // from a different call frame stack
+                    try {
+                        var ts = ttext.match(SPACESEP_REGEX);
+                        if (!ts) {
+                            throw "input sequence was empty";
                         }
 
-                        // if we are done with the input operation, call the
-                        // 'next' callback; otherwise make a recursive call
-                        if (done)
-                            next(); // original callback
-                        else
-                            obj.next();
-                    });
-                }
+                        // update variable value (or create if not seen); save
+                        // any extra tokens for a future operation
+                        obj.inputRequest(ts[0]);
+                        obj.extra = obj.extra.concat(ts.slice(1));
+                    } catch (e) {
+                        terminal.addLine("input block: error: " + e,'error-line');
+                        return true; // simulation will exit
+                    }
 
-                // the callback will handle the rest of the operation
-                return;
+                    // if we are done with the input operation, call the
+                    // 'next' callback; otherwise make a recursive call
+                    if (done)
+                        next(); // original callback
+                    else
+                        obj.next();
+                });
+
+                return true; // 'true' means exited (due to waiting on input)
             }
         }
     };
@@ -676,11 +708,13 @@ FormatString.prototype.input = function(block,next) {
     else {
         try {
             var o = new cb();
-            o.next();
+            return o.next();
         } catch (e) {
             terminal.addLine("input block: error: " + e,'error-line');
         }
     }
+
+    return true;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
