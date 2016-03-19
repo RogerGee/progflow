@@ -91,8 +91,8 @@ function initPage() {
     // create main panel buttons
     mainPanel.addButtonB("new",buttonNew);
     mainPanel.addTextField("flowchart-name",16);
-    mainPanel.addButtonB("save",buttonSave);
-    mainPanel.addButtonB("open in new tab",buttonOpenInNewTab);
+    mainPanel.addButtonB("save project",buttonSaveProject);
+    mainPanel.addButtonB("open project",buttonOpenProject);
     mainPanel.addButtonB("close project",buttonCloseProject);
     mainPanel.addButtonB("help pages",buttonHelp);
     mainPanel.addButtonB("about ProgFlow",buttonAbout);
@@ -126,7 +126,7 @@ function initPage() {
     canvas.appendChild(document.createTextNode("Browser does not support HTML5 Canvas"));
     canvas.setAttribute("id","canvas-main");
     canvasView.appendChild(canvas);
-    context = new DrawingContext(canvas,canvasView,"program");
+    context = new DrawingContext(canvas,canvasView,{label: "program"});
 }
 
 // resizePage() - handle window resize event
@@ -161,18 +161,149 @@ function buttonNew() {
 
     // TODO: check save state
 
-    context = new DrawingContext(canvas,canvasView,name);
+    context = new DrawingContext(canvas,canvasView,{label: name});
     context.drawScreen();
 }
 
-function buttonSave() {
+function buttonSaveProject() {
     // generate a savable representation of the program and download it as a
     // data-URL
 
+    var rep = context.getSaveRep();
+    var json = JSON.stringify(rep,null,4);
+    var dataURL = "data:text/json;charset=utf-8," + encodeURIComponent(json);
+    var head = document.createElement('h1');
+    var link = document.createElement('a');
+    var jsonBox = document.createElement('textarea');
+
+    head.innerHTML = "Save Project";
+    link.download = rep.label + ".json";
+    link.href = dataURL;
+    link.innerHTML = "Download Save Program Representation";
+    jsonBox.innerHTML = json;
+    jsonBox.className = "save-json-box";
+    jsonBox.readOnly = true;
+    var dialog = new CustomPage({
+        content:[head,jsonBox,document.createElement("br"),link]
+    });
+    dialog.show();
+    context.unmodified();
 }
 
-function buttonOpenInNewTab() {
+function buttonOpenProject() {
+    var warning;
+    if (context.isModified()) {
+        warning = document.createElement("p");
+        warning.className = "open-file-warning";
+        warning.innerHTML = "WARNING: You have modified the current project. "
+            + "Opening another project will overwrite your changes. Go back and "
+            + "save them first if you want to avoid losing your changes.";
+    }
 
+    var selectedFile = null;
+    var head = document.createElement('h1');
+    var link = document.createElement('a');
+    var div = document.createElement('div');
+    var a = document.createElement('div'), b = document.createElement('div');
+    var input = document.createElement('input');
+    var lbl = document.createElement('p');
+    var preview = document.createElement('textarea');
+
+    head.innerHTML = "Open Project";
+    link.innerHTML = "Choose File...";
+    link.href = "#";
+    link.onclick = function(e) {
+        input.click();
+        e.preventDefault();
+    };
+    div.className = "open-file-div";
+    a.className = "open-file-div-inner";
+    b.className = "open-file-div-inner";
+    input.className = "open-file-input";
+    input.type = "file";
+    input.onchange = function() {
+        if (this.files.length > 1) {
+            lbl.className = "open-file-error-p";
+            lbl.innerHTML = "Please only specify 1 file";
+            selectedFile = null;
+            return;
+        }
+
+        selectedFile = this.files[0];
+        lbl.className = "open-file-p";
+        lbl.innerHTML = selectedFile.name;
+
+        try {
+            var reader = new FileReader();
+            reader.onload = function(e) {
+                preview.innerHTML = e.target.result;
+            };
+            reader.readAsText(selectedFile);
+        } catch (e) {
+            selectedFile = null;
+            lbl.className = "open-file-error-p";
+            lbl.innerHTML = "Failed to read input file: " + e;
+            return;
+        }
+    };
+    lbl.className = "open-file-error-p";
+    lbl.innerHTML = "No file selected";
+    preview.readOnly = true;
+    preview.className = "json-preview-box";
+
+    div.appendChild(a);
+    div.appendChild(b);
+    if (typeof warning != "undefined")
+        a.appendChild(warning);
+    a.appendChild(input);
+    a.appendChild(link);
+    a.appendChild(lbl);
+    b.appendChild(preview);
+
+    function onOpen() {
+        if (selectedFile != null) {
+            try {
+                var reader = new FileReader();
+                reader.onload = function(e) {
+                    var newcontext;
+                    var canvas = document.getElementById("canvas-main");
+                    var canvasView = document.getElementById("div-canvas-view");
+
+                    try {
+                        newcontext = new DrawingContext(
+                            canvas,
+                            canvasView,
+                            JSON.parse(e.target.result) );
+                    } catch (err) {
+                        selectedFile = null;
+                        lbl.className = "open-file-error-p";
+                        lbl.innerHTML = "Failed to load input file: " + e;
+                        return;
+                    }
+
+                    context = newcontext;
+                    context.drawScreen();
+                    dialog.close();
+                };
+                reader.readAsText(selectedFile);
+            } catch (e) {
+                selectedFile = null;
+                lbl.className = "open-file-error-p";
+                lbl.innerHTML = "Failed to read input file: " + e;
+                return;
+            }
+        }
+        else
+            alert("Please select a file.");
+    }
+
+    var dialog = new CustomPage({
+        content:[head,input,div],
+        actions:[
+            {label: "Open File", callback: onOpen}
+        ]
+    });
+    dialog.show();
 }
 
 function buttonCloseProject() {
@@ -182,7 +313,7 @@ function buttonCloseProject() {
 
     // TODO: check save state
 
-    context = new DrawingContext(canvas,canvasView,"program");
+    context = new DrawingContext(canvas,canvasView,{label: "program"});
     nodePanel.innerHTML = '';
 }
 
@@ -198,23 +329,23 @@ function buttonHelp() {
 
 function buttonMakeOperationNode() {
     // add an operation node to the context
-    context.addNode('flowoperation',DEFAULT_OPERATION);
+    context.addNode('flowoperation');
 }
 
 function buttonMakeInNode() {
-    context.addNode('flowin',"");
+    context.addNode('flowin');
 }
 
 function buttonMakeOutNode() {
-    context.addNode('flowout',"");
+    context.addNode('flowout');
 }
 
 function buttonMakeIfNode() {
-    context.addNode('flowif',"");
+    context.addNode('flowif');
 }
 
 function buttonMakeWhileNode() {
-    context.addNode('flowwhile',"");
+    context.addNode('flowwhile');
 }
 
 function buttonMakeProcNode() {

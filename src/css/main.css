@@ -74,3 +74,56 @@ html, body {
     overflow-x: hidden;
     overflow-y: auto;
 }
+
+.save-json-box {
+    width: 100%;
+    height: 80%;
+    resize: none;
+    background-color: white;
+    border: none;
+    font-family: monospace;
+}
+
+.open-file-input {
+    display: none;
+}
+
+.open-file-error-p {
+    color: red;
+    font-size: 12pt;
+    font-family: monospace;
+    font-weight: bolder;
+}
+
+.open-file-p {
+    color: blue;
+    font-size: 12pt;
+    font-weight: bolder;
+    font-family: monospace;
+}
+
+.json-preview-box {
+    width: 100%;
+    height: 100%;
+    resize: none;
+    background-color: white;
+    border: none;
+    font-family: monospace;
+}
+
+.open-file-div {
+    display: flex;
+    flex-direction: row;
+    width: 100%;
+    height: 80%;
+}
+
+.open-file-div-inner {
+    width: 50%;
+}
+
+.open-file-warning {
+    color: green;
+    font-size: 1.5em;
+    font-weight: bolder;
+}

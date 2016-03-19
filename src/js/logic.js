@@ -2,10 +2,12 @@
 
 // constants used by logic objects
 const DEFAULT_OPERATION = 'nop';
+const DEFAULT_IF = 'false';
+const DEFAULT_WHILE = 'false';
 
 // FlowBlockLogic - logic handling for flowblock visuals; a block is a collection
 // of statements that may or may not return a value
-function FlowBlockLogic(visual,block) {
+function FlowBlockLogic(visual,block,rep) {
     var locals = {}; // local variables
     var stack = []; // stack of local variables lists
 
@@ -180,8 +182,13 @@ function FlowBlockLogic(visual,block) {
         nx();
     }
 
+    // getRep() - get save representation of logic node
+    function getRep() {
+        return {};
+    }
+
     ////////////////////////////////////////////////////////////////////////////
-    // Public interface functions
+    // Initialization
     ////////////////////////////////////////////////////////////////////////////
 
     this.createVariable = createVariable;
@@ -193,11 +200,21 @@ function FlowBlockLogic(visual,block) {
     this.getName = visual.getLabel;
     this.ontoggle = ontoggle;
     this.exec = exec;
+    this.getRep = getRep;
+
+    if (typeof rep != 'undefined') {
+        // nothing to unpack (currently)
+
+    }
 }
 
 // FlowOperationLogic - logic handling for flow-operation visuals
-function FlowOperationLogic(visual,block) {
-    var expr = new ExpressionParser("",false,true); // the expression the operation node will execute
+function FlowOperationLogic(visual,block,rep) {
+     // create the expression the operation node will execute
+    var expr = new ExpressionParser(
+                    typeof rep == 'undefined' ? "" : rep.expr,
+                    false,
+                    true );
 
     ////////////////////////////////////////////////////////////////////////////
     // Functions
@@ -265,12 +282,21 @@ function FlowOperationLogic(visual,block) {
         }
     }
 
+    // getRep() - gets an object representation of the logic
+    function getRep() {
+        return {expr: expr.expr()};
+    }
+
     ////////////////////////////////////////////////////////////////////////////
     // Initialization
     ////////////////////////////////////////////////////////////////////////////
 
     this.ontoggle = ontoggle;
     this.exec = exec;
+    this.getRep = getRep;
+
+    if (expr.error())
+        throw expr.errorMsg();
     syncLabel();
 }
 
@@ -278,8 +304,9 @@ function FlowOperationLogic(visual,block) {
 // FlowInOutLogic - logic handling for input/output visuals
 ////////////////////////////////////////////////////////////////////////////////
 
-function FlowInOutLogic(visual,block,param) {
-    var formatString = new FormatString("");
+function FlowInOutLogic(visual,block,param,rep) {
+    var formatString = new FormatString(
+                        typeof rep == 'undefined' ? "" : rep.formatString);
 
     ////////////////////////////////////////////////////////////////////////////
     // Functions
@@ -317,20 +344,31 @@ function FlowInOutLogic(visual,block,param) {
         }
     }
 
+    function getRep() {
+        return {formatString: formatString.fs};
+    }
+
     ////////////////////////////////////////////////////////////////////////////
     // Initialization
     ////////////////////////////////////////////////////////////////////////////
 
     this.ontoggle = ontoggle;
     this.exec = exec;
+    this.getRep = getRep;
+
+    if (typeof rep != 'undefined')
+        visual.setLabel(rep.formatString);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 // FlowIfLogic
 ////////////////////////////////////////////////////////////////////////////////
 
-function FlowIfLogic(visual,block) {
-    var expr = new ExpressionParser("false",true,false);
+function FlowIfLogic(visual,block,rep) {
+    var expr = new ExpressionParser(
+                typeof rep == 'undefined' ? DEFAULT_IF : rep.cond(),
+                true,
+                false );
 
     ////////////////////////////////////////////////////////////////////////////
     // Functions
@@ -390,13 +428,20 @@ function FlowIfLogic(visual,block) {
         }
     }
 
+    function getRep() {
+        return {cond: expr.expr()};
+    }
+
     ////////////////////////////////////////////////////////////////////////////
     // Initialization
     ////////////////////////////////////////////////////////////////////////////
 
     this.ontoggle = ontoggle;
     this.exec = exec;
+    this.getRep = getRep;
 
+    if (expr.error())
+        throw expr.errorMsg();
     visual.setLabel(expr.expr());
 }
 
@@ -404,8 +449,11 @@ function FlowIfLogic(visual,block) {
 // FlowWhileLogic
 ////////////////////////////////////////////////////////////////////////////////
 
-function FlowWhileLogic(visual,block) {
-    var expr = new ExpressionParser("false",true,false);
+function FlowWhileLogic(visual,block,rep) {
+    var expr = new ExpressionParser(
+                typeof rep == 'undefined' ? DEFAULT_WHILE : rep.cond,
+                true,
+                false );
 
     ////////////////////////////////////////////////////////////////////////////
     // Functions
@@ -498,13 +546,20 @@ function FlowWhileLogic(visual,block) {
         args.exited = newargs.exited;
     }
 
+    function getRep() {
+        return {cond: expr.expr()};
+    }
+
     ////////////////////////////////////////////////////////////////////////////
     // Initialization
     ////////////////////////////////////////////////////////////////////////////
 
     this.ontoggle = ontoggle;
     this.exec = exec;
+    this.getRep = getRep;
 
+    if (expr.error())
+        throw expr.errorMsg();
     visual.setLabel(expr.expr());
 }
 

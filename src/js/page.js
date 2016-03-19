@@ -1,5 +1,6 @@
 // page.js - progflow
 
+// Page: a popup view that displays an HTML page and allows for navigation
 var Page = function(url) {
     var firstPage = true;
     var element, content, backBtn;
@@ -60,4 +61,53 @@ Page.prototype.goto = function(newurl) {
     // to provide back functionality
 
     this.content.location = newurl;
+}
+
+// CustomPage: an object similar to page but with custom content specified by
+// a JavaScript object with the following attributes:
+//  - actions: array of {label,callback} for action buttons at bottom of page
+//  - content: array of HTML elements
+var CustomPage = function(params) {
+    this.element = element = document.createElement('div');
+    this.element.className = "page";
+
+    this.btnPanel = document.createElement('div');
+    this.btnPanel.className = "page-button-panel";
+
+    this.closeBtn = document.createElement('button');
+    this.closeBtn.className = "page-button";
+    this.closeBtn.innerHTML = "Close";
+    this.closeBtn.onclick = function(){document.body.removeChild(element);};
+
+    this.content = document.createElement('div');
+    this.content.className = "page-content";
+
+    this.element.appendChild(this.content);
+    this.element.appendChild(this.btnPanel);
+
+    if ('actions' in params) {
+        for (var action of params.actions) {
+            var btn = document.createElement('button');
+            btn.className = "page-button";
+            btn.innerHTML = action.label;
+            btn.onclick = action.callback;
+            this.btnPanel.appendChild(btn);
+        }
+    }
+
+    if ('content' in params) {
+        for (var elem of params.content) {
+            this.content.appendChild(elem);
+        }
+    }
+
+    this.btnPanel.appendChild(this.closeBtn);
+}
+
+CustomPage.prototype.show = function() {
+    document.body.appendChild(this.element);
+}
+
+CustomPage.prototype.close = function() {
+    document.body.removeChild(this.element);
 }

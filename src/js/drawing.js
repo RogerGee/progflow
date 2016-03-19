@@ -22,16 +22,42 @@ function pnpoly(poly,x,y) {
     return c;
 }
 
+function createVisual(ctx,kind,block,rep) {
+    kind = kind.toLowerCase();
+
+    if (kind == "flowblock") {
+        return new FlowBlockVisual(ctx,"",block,rep);
+    }
+    if (kind == "flowoperation") {
+        return new FlowOperationVisual(ctx,"",block,rep);
+    }
+    if (kind == "flowin") {
+        return new FlowInOutVisual(ctx,"",block,"in",rep);
+    }
+    if (kind == "flowout") {
+        return new FlowInOutVisual(ctx,"",block,"out",rep);
+    }
+    if (kind == 'flowif') {
+        return new FlowIfVisual(ctx,"",block,rep);
+    }
+    if (kind == 'flowwhile') {
+        return new FlowWhileVisual(ctx,"",block,rep);
+    }
+
+    return null;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 // DrawingContext - handles top-level drawing operations
 ////////////////////////////////////////////////////////////////////////////////
 
-function DrawingContext(canvas,canvasView,programName) {
+function DrawingContext(canvas,canvasView,program) {
     var ctx = canvas.getContext("2d"); // HTML5 Canvas context
     // block for all program elements
-    var topBlock = new FlowBlockVisual(ctx,programName);
-    var currentBlock = topBlock;
+    var topBlock;
+    var currentBlock;
     var blockStack = [];
+    var modified;
 
     ////////////////////////////////////////////////////////////////////////////
     // Functions
@@ -239,6 +265,7 @@ function DrawingContext(canvas,canvasView,programName) {
         var element = new FlowBlockVisual(ctx,label); // has no parent logic to inherit
         element.setHeightChangeCallback(resizeCanvas);
         topBlock.addChild(element);
+        modified = true;
         drawScreen();
         return element;
     }
@@ -274,7 +301,7 @@ function DrawingContext(canvas,canvasView,programName) {
 
     // addNode() - creates and adds a child visual to the current block; the
     // current block must not be the top block
-    function addNode(kind,label,param) {
+    function addNode(kind) {
         var node = null;
 
         // must not be in top block scope
@@ -282,28 +309,11 @@ function DrawingContext(canvas,canvasView,programName) {
             return;
 
         // create node based on kind; it gets a reference to the current block's
-        // logic object;
-        kind = kind.toLowerCase();
-        if (kind == "flowblock") {
-            node = new FlowBlockVisual(ctx,label,currentBlock.getLogic(),param);
-        }
-        else if (kind == "flowoperation") {
-            node = new FlowOperationVisual(ctx,label,currentBlock.getLogic(),param);
-        }
-        else if (kind == "flowin") {
-            node = new FlowInOutVisual(ctx,label,currentBlock.getLogic(),"in");
-        }
-        else if (kind == "flowout") {
-            node = new FlowInOutVisual(ctx,label,currentBlock.getLogic(),"out");
-        }
-        else if (kind == 'flowif') {
-            node = new FlowIfVisual(ctx,label,currentBlock.getLogic());
-        }
-        else if (kind == 'flowwhile') {
-            node = new FlowWhileVisual(ctx,label,currentBlock.getLogic());
-        }
+        // logic object
+        node = createVisual(ctx,kind,currentBlock.getLogic());
 
         if (node != null) {
+            modified = true;
             currentBlock.addChild(node);
             drawScreen();
         }
@@ -351,6 +361,12 @@ function DrawingContext(canvas,canvasView,programName) {
         return main;
     }
 
+    // getSaveRep() - gets the save representation of the current program as a
+    // JavaScript object
+    function getSaveRep() {
+        return topBlock.getRep();
+    }
+
     ////////////////////////////////////////////////////////////////////////////
     // Initialization
     ////////////////////////////////////////////////////////////////////////////
@@ -362,23 +378,38 @@ function DrawingContext(canvas,canvasView,programName) {
     this.restoreBlock = restoreBlock;
     this.addNode = addNode;
     this.topLevelLogic = topLevelLogic;
+    this.getSaveRep = getSaveRep;
+    this.isModified = function(){return modified;};
+    this.unmodified = function(){modified = false;};
     ctx.drawPolygon = drawPolygon;
     ctx.drawArrow = drawArrow;
     ctx.drawText = drawText;
     ctx.drawLine = drawLine;
     ctx.textWidth = textWidth;
+    ctx.onmodify = function(){modified = true;};
     canvas.onclick = onCanvasClick;
+
+    topBlock = currentBlock = new FlowBlockVisual(ctx,program.label);
     topBlock.setHeightChangeCallback(resizeCanvas);
     topBlock.setIcon(false);
-    addBlock("main");
+    if (typeof program.children != 'undefined') {
+        // load from save representation
+        program.hccb = resizeCanvas; // children must be able to resize notify
+        topBlock.loadFromRep(program);
+    }
+    else {
+        addBlock("main");
+    }
     resizeCanvas();
+    modified = false;
 }
 
 /* Visuals -
 
     Visuals represent the set of rendered elements used to compose a program
-    flow diagram. Each object takes a label that may be left empty and a
-    reference to a flow-block object that may be null. Each object implements the
+    flow diagram. Each object takes a label that may be left empty, a reference
+    to a flow-block object that may be null and an optional 'rep' object that
+    specifies how the visual is to be constructed. Each object implements the
     following methods:
         - draw: render the visual
         - onclick: get element that was clicked given coordinates
@@ -389,6 +420,8 @@ function DrawingContext(canvas,canvasView,programName) {
             ETC.
         - ontoggle: called when a click event occurred on the visual [optional]
         - istoggled: called to ask if a visual is toggled [optional]
+        - set/getLabel: manipulate visual text
+        - getRep: get save representation of object
 */
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -396,7 +429,7 @@ function DrawingContext(canvas,canvasView,programName) {
 // diagram elements rendered on the screen
 ////////////////////////////////////////////////////////////////////////////////
 
-function FlowBlockVisual(ctx,label,block) {
+function FlowBlockVisual(ctx,label,block,rep) {
     var children = []; // list of child drawables
     var iconified = true; // whether or not is iconified (i.e. made small)
     var maxy = 1.0; // max y-coordinate for our coordinate system
@@ -702,6 +735,35 @@ function FlowBlockVisual(ctx,label,block) {
         return children[iter.iter++];
     }
 
+    // getRep() - get save representation JavaScript object of the visual/logic
+    function getRep() {
+        var o = {
+            label: label,
+            logic: logic.getRep(),
+            children: [],
+            kind: 'flowblock'
+        };
+
+        for (var child of children) {
+            o.children.push(child.getRep());
+        }
+
+        return o;
+    }
+
+    function loadFromRep(rep) {
+        setHeightChangeCallback(rep.hccb);
+        label = rep.label;
+        logic = new FlowBlockLogic(this,block,rep.logic);
+        if ('children' in rep) {
+            for (var i of rep.children) {
+                i.hccb = recalcHeight; // children must be able to resize notify
+                children.push(createVisual(ctx,i.kind,logic,i));
+            }
+            recalcHeight();
+        }
+    }
+
     ////////////////////////////////////////////////////////////////////////////
     // Initialization
     ////////////////////////////////////////////////////////////////////////////
@@ -720,19 +782,27 @@ function FlowBlockVisual(ctx,label,block) {
     this.onclick = onclick;
     this.type = 'block';
     this.getLabel = function(){return label;};
-    this.setLabel = function(text){label = text;};
+    this.setLabel = function(text){label = text; ctx.onmodify();};
     this.forEachChild = forEachChild;
     this.nextChild = nextChild;
     this.newChildIter = function(){return {iter:0}};
-    logic = new FlowBlockLogic(this,block);
+    this.getRep = getRep;
+    this.loadFromRep = loadFromRep;
+
+    if (typeof rep != 'undefined') {
+        this.loadFromRep(rep);
+    }
+    else {
+        logic = new FlowBlockLogic(this,block);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-// FlowOperationVisual - represents a visual element representing a procedural
+// FlowOperationVisual - represents a visual element representing a mathematical
 // operation in the program
 ////////////////////////////////////////////////////////////////////////////////
 
-function FlowOperationVisual(ctx,label,block) {
+function FlowOperationVisual(ctx,label,block,rep) {
     var logic; // visual logic object
     var selected = false; // has the visual been selected?
     var wbound = 1; // absolute value of width bound
@@ -808,6 +878,12 @@ function FlowOperationVisual(ctx,label,block) {
         if (w < 2)
             w = 2;
         wbound = w / 2;
+        ctx.onmodify();
+    }
+
+    // getRep() - get save representation
+    function getRep() {
+        return {logic: logic.getRep(), kind: 'flowoperation'};
     }
 
     ////////////////////////////////////////////////////////////////////////////
@@ -823,9 +899,15 @@ function FlowOperationVisual(ctx,label,block) {
     this.getLogic = function(){return logic;};
     this.getLabel = function(){return label;};
     this.setLabel = setLabel;
+    this.getRep = getRep;
     this.type = 'operation';
-    setLabel(label);
-    logic = new FlowOperationLogic(this,block);
+
+    if (typeof rep != 'undefined') {
+        logic = new FlowOperationLogic(this,block,rep.logic);
+    }
+    else {
+        logic = new FlowOperationLogic(this,block);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -833,9 +915,9 @@ function FlowOperationVisual(ctx,label,block) {
 // output functionality
 ////////////////////////////////////////////////////////////////////////////////
 
-function FlowInOutVisual(ctx,label,block,param) {
+function FlowInOutVisual(ctx,label,block,param,rep) {
+    var logic;
     var selected = false;
-    var logic = new FlowInOutLogic(this,block,param);
     var wbound = 1;
 
     ////////////////////////////////////////////////////////////////////////////
@@ -898,6 +980,11 @@ function FlowInOutVisual(ctx,label,block,param) {
         if (w < 2)
             w = 2;
         wbound = w / 2;
+        ctx.onmodify();
+    }
+
+    function getRep() {
+        return {logic: logic.getRep(), kind: 'flow'+param};
     }
 
     ////////////////////////////////////////////////////////////////////////////
@@ -913,18 +1000,26 @@ function FlowInOutVisual(ctx,label,block,param) {
     this.getLogic = function(){return logic;};
     this.getLabel = function(){return label;};
     this.setLabel = setLabel;
+    this.getRep = getRep;
     this.type = 'inout';
+
+    if (typeof rep != 'undefined') {
+        logic = new FlowInOutLogic(this,block,param,rep.logic);
+    }
+    else {
+        logic = new FlowInOutLogic(this,block,param);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 // FlowIfVisual
 ////////////////////////////////////////////////////////////////////////////////
 
-function FlowIfVisual(ctx,label,block) {
+function FlowIfVisual(ctx,label,block,rep) {
     var selected = false;
     var logic;
-    var truePart = new FlowBlockVisual(ctx,"true",block);
-    var falsePart = new FlowBlockVisual(ctx,"false",block);
+    var truePart;
+    var falsePart;
 
     ////////////////////////////////////////////////////////////////////////////
     // Functions
@@ -1019,6 +1114,13 @@ function FlowIfVisual(ctx,label,block) {
         falsePart.setHeightChangeCallback(callback);
     }
 
+    function getRep() {
+        return {
+            truePart: truePart.getRep(), falsePart: falsePart.getRep(),
+            logic: logic.getRep(), kind: 'flowif'
+        };
+    }
+
     ////////////////////////////////////////////////////////////////////////////
     // Initialization
     ////////////////////////////////////////////////////////////////////////////
@@ -1032,22 +1134,33 @@ function FlowIfVisual(ctx,label,block) {
     this.isToggled = function(){return selected;};
     this.getLogic = function(){return logic;};
     this.getLabel = function(){return label;};
-    this.setLabel = function(text){label = text;};
+    this.setLabel = function(text){label = text; ctx.onmodify();};
     this.getTruePart = function(){return truePart;};
     this.getFalsePart = function(){return falsePart;};
+    this.getRep = getRep;
     this.type = 'if';
 
-    logic = new FlowIfLogic(this,block);
+    if (typeof rep != 'undefined') {
+        rep.truePart.hccb = rep.falsePart.hccb = rep.hccb; // copy resize notify callback
+        truePart = new FlowBlockVisual(ctx,"true",block,rep.truePart);
+        falsePart = new FlowBlockVisual(ctx,"false",block,rep.falsePart);
+        logic = new FlowIfLogic(this,block,rep.logic);
+    }
+    else {
+        truePart = new FlowBlockVisual(ctx,"true",block);
+        falsePart = new FlowBlockVisual(ctx,"false",block);
+        logic = new FlowIfLogic(this,block);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 // FlowWhileVisual
 ////////////////////////////////////////////////////////////////////////////////
 
-function FlowWhileVisual(ctx,label,block) {
+function FlowWhileVisual(ctx,label,block,rep) {
     var selected = false;
     var logic;
-    var body = new FlowBlockVisual(ctx,"loop-body",block);
+    var body;
 
     ////////////////////////////////////////////////////////////////////////////
     // Functions
@@ -1135,6 +1248,10 @@ function FlowWhileVisual(ctx,label,block) {
         body.setHeightChangeCallback(callback);
     }
 
+    function getRep() {
+        return {body: body.getRep(), logic: logic.getRep(), kind: 'flowwhile'};
+    }
+
     ////////////////////////////////////////////////////////////////////////////
     // Initialization
     ////////////////////////////////////////////////////////////////////////////
@@ -1148,9 +1265,18 @@ function FlowWhileVisual(ctx,label,block) {
     this.isToggled = function(){return selected;};
     this.getLogic = function(){return logic;};
     this.getLabel = function(){return label;};
-    this.setLabel = function(text){label = text;};
+    this.setLabel = function(text){label = text; ctx.onmodify();};
     this.getBody = function(){return body;};
+    this.getRep = getRep;
     this.type = 'while';
 
-    logic = new FlowWhileLogic(this,block);
+    if (typeof rep != 'undefined') {
+        rep.body.hccb = rep.hccb; // copy resize notify callback
+        body = new FlowBlockVisual(ctx,"loop-body",block,rep.body);
+        logic = new FlowWhileLogic(this,block,rep.logic);
+    }
+    else {
+        body = new FlowBlockVisual(ctx,"loop-body",block);
+        logic = new FlowWhileLogic(this,block);
+    }
 }
