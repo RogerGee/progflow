@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<meta charset="utf-8" />
+
+<html>
+    <head>
+        <link rel='stylesheet' href='pages.css'>
+    </head>
+    <body>
+        <h1>Variables</h1>
+
+        <p>
+            Variables are symbolic placeholders for data used in the computer
+            program. Every variable has a unique name that must begin with a letter
+            (either upper or lower case) or underscore <code>_</code>. Any
+            subsequent combination of letters, underscores or digits is allowed.
+        </p>
+
+        <p>
+            A variable is created when it is first assigned a value. Variables
+            only store numbers and cannot be used to hold onto Boolean values,
+            text strings or any other kind of data.
+        </p>
+
+        <p>
+            In addition to its name and value, a variable also has a property
+            called <i>scope</i>. Scope is the part of the computer program in
+            which the variable is valid (i.e. defined). Another useful term
+            associated with scope is <i>lifetime</i>. The lifetime of a variable
+            is how long the variable is defined in the program's execution. This
+            is similar but different from scope which describes the "space" in
+            which a variable is defined. In the Simulator, a variable exists throughout
+            its scope (meaning the variable's scope and lifetime describe the same
+            thing). When a variable is created, it exists in the scope in which
+            it was created. Once a variable's scope ends, the variable is destroyed
+            and becomes unavailable to the program.
+        </p>
+
+        <p>
+            The Simulator will keep a variable "in-scope" for as long as the
+            <i>block</i> that defined the variable is executing. As such, each
+            block effectively creates its own scope. A block is a region of
+            statements in the program. Types of blocks defined by the Simulator
+            include <a href="help-proc.html">procedures</a>, a
+            <a href="help-while.html">loop</a> body or the true/false part of an
+            <a href="help-if.html">if-statement</a>. The Simulator draws a
+            dashed line around blocks in program.
+        </p>
+
+        <p>
+            What's confusing about scope is that some scopes may overlap (i.e.
+            one scope is nested within another). The scope that contains the other
+            is called the wider scope or overlapping scope. Likewise the nested
+            scope is called the narrower or overlapped scope. All variables
+            defined in the wider scope are available to the narrower scope given
+            that they were already defined before the narrower scope was reached.
+            However this doesn't work both ways. Since the narrower scope ends
+            before the wider scope, its variables are destroyed before the wider
+            scope could access them. Make sure that variables are first referenced
+            in the widest possible scope so that they can be accessed where needed.
+            Sometimes you may just need to assign a dummy value to create a
+            variable needed at a wider scope.
+        </p>
+
+    </body>
+</html>

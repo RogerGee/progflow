@@ -6,13 +6,13 @@
         <link rel='stylesheet' href='pages.css'>
     </head>
     <body>
-        <h1>Operation Blocks</h1>
+        <h1>Operation Blocks (Statements)</h1>
 
         <p>
             Operation blocks are elements in the flow diagram that perform an
             operation using information in the program. An operation is any
-            combination of mathematical operations. An operation takes a single
-            expression which can include any of the following operations:
+            combination of mathematical operations. An operation block accepts a
+            single expression which can include any of the following operations:
         </p>
 
         <table style="margin: 2%" cellspacing=10>
@@ -104,10 +104,8 @@
 
         <p>
             An operation would have no effect if its value weren't saved. The
-            simulator therefore provides <i>variables</i> in order to store information
-            in the program. Every variable has a unique name. Its name must begin
-            with a letter (either upper or lower case) or underscore <code>_</code>.
-            Any subsequent combination of letters, underscores or digits is allowed.
+            simulator therefore provides <a href="help-variables.html">variables</a>
+            in order to store information in the program.
         </p>
 
         <p>
@@ -151,12 +149,11 @@
         </table>
 
         <p>
-            <u>Be careful</u> that a variable actually has been given a value when you
-            use it on the right-hand side. The Simulator will give the variable
-            a value of <code>0</code> if it has not been used (and will warn you
-            about it not having existed before being used). You don't want to use
-            a variable that doesn't have a value (you might as well use the value
-            0)!
+            <u>Be careful</u> that a variable actually has been given a value
+            when you use it on the right-hand side. If a variable's value is
+            referenced before it is defined, the Simulator will display an error
+            message and stop. See the <a href="help-variables.html">help page on
+            variables</a> for more about variable usage.
         </p>
 
         <p>
@@ -188,7 +185,7 @@
         </table>
 
         <p>
-            This side effect of assignments is useful to know to save you having
+            This feature of assignments is useful to know to save you having
             to make more than one operation block to do some mundane task.
         </p>
 

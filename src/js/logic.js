@@ -165,7 +165,7 @@ function FlowBlockLogic(visual,block,rep) {
 
             // copy exit status; if we did exit, then newargs won't be manipulated
             // until the simulator is restarted (e.g. by an input event)
-            args.exited = newargs.exited;
+            args.exited = args.exited || newargs.exited;
             newargs.exited = false;
 
             // if the return value is defined, call the 'next' function to continue; a
@@ -340,7 +340,8 @@ function FlowInOutLogic(visual,block,param,rep) {
         }
         else {
             formatString.output(block);
-            args.next();
+            setTimeout(args.next,1); // throttle output
+            args.exited = true;
         }
     }
 
@@ -366,7 +367,7 @@ function FlowInOutLogic(visual,block,param,rep) {
 
 function FlowIfLogic(visual,block,rep) {
     var expr = new ExpressionParser(
-                typeof rep == 'undefined' ? DEFAULT_IF : rep.cond(),
+                typeof rep == 'undefined' ? DEFAULT_IF : rep.cond,
                 true,
                 false );
 
@@ -420,11 +421,16 @@ function FlowIfLogic(visual,block,rep) {
         // is no need to call next ourselves since we are a control structure and
         // redirect control somewhere else
 
-        if (expr.evaluate(block)) {
-            visual.getTruePart().getLogic().exec(args);
-        }
-        else {
-            visual.getFalsePart().getLogic().exec(args);
+        try {
+            if (expr.evaluate(block)) {
+                visual.getTruePart().getLogic().exec(args);
+            }
+            else {
+                visual.getFalsePart().getLogic().exec(args);
+            }
+        } catch (e) {
+            terminal.addLine("if block: error: " + e,'error-line');
+            args.exited = true;
         }
     }
 
@@ -515,19 +521,20 @@ function FlowWhileLogic(visual,block,rep) {
                 // perform loop iterations
                 while (cond = expr.evaluate(block)) {
                     visual.getBody().getLogic().exec(newargs);
+                    if (newargs.iters <= 0)
+                        throw "execution limit exceeded";
+                    newargs.iters -= 1;
                     if (newargs.exited) {
                         var t = newargs.next;
                         newargs.next = newargs.restart;
                         newargs.restart = t;
                         return;
                     }
-                    if (newargs.iters <= 0)
-                        throw "execution limit exceeded";
-                    newargs.iters -= 1;
                 }
             } catch (e) {
                 terminal.addLine('while block: error: '+e,'error-line');
-                args.exited = true;
+                newargs.exited = true;
+                return;
             }
 
             // if the while loop is finished running (i.e. its condition was false),
@@ -543,7 +550,8 @@ function FlowWhileLogic(visual,block,rep) {
         };
 
         fn();
-        args.exited = newargs.exited;
+        args.exited = args.exited || newargs.exited;
+        newargs.exited = false;
     }
 
     function getRep() {
