@@ -1,0 +1,253 @@
+{
+    "label": "binary-search",
+    "logic": {},
+    "children": [
+        {
+            "label": "main",
+            "logic": {},
+            "children": [
+                {
+                    "logic": {
+                        "formatString": "How many values? %n"
+                    },
+                    "kind": "flowin"
+                },
+                {
+                    "logic": {
+                        "expr": "i = a = 0"
+                    },
+                    "kind": "flowoperation"
+                },
+                {
+                    "body": {
+                        "label": "loop-body",
+                        "logic": {},
+                        "children": [
+                            {
+                                "logic": {
+                                    "formatString": "%{a[i]}"
+                                },
+                                "kind": "flowin"
+                            },
+                            {
+                                "logic": {
+                                    "expr": "i = i + 1"
+                                },
+                                "kind": "flowoperation"
+                            }
+                        ],
+                        "kind": "flowblock"
+                    },
+                    "logic": {
+                        "cond": "i < n"
+                    },
+                    "kind": "flowwhile"
+                },
+                {
+                    "logic": {
+                        "expr": "m = n"
+                    },
+                    "kind": "flowoperation"
+                },
+                {
+                    "body": {
+                        "label": "loop-body",
+                        "logic": {},
+                        "children": [
+                            {
+                                "logic": {
+                                    "expr": "i = 0"
+                                },
+                                "kind": "flowoperation"
+                            },
+                            {
+                                "body": {
+                                    "label": "loop-body",
+                                    "logic": {},
+                                    "children": [
+                                        {
+                                            "truePart": {
+                                                "label": "true",
+                                                "logic": {},
+                                                "children": [
+                                                    {
+                                                        "logic": {
+                                                            "expr": "t = a[i]"
+                                                        },
+                                                        "kind": "flowoperation"
+                                                    },
+                                                    {
+                                                        "logic": {
+                                                            "expr": "a[i] = a[i+1]"
+                                                        },
+                                                        "kind": "flowoperation"
+                                                    },
+                                                    {
+                                                        "logic": {
+                                                            "expr": "a[i+1] = t"
+                                                        },
+                                                        "kind": "flowoperation"
+                                                    }
+                                                ],
+                                                "kind": "flowblock"
+                                            },
+                                            "falsePart": {
+                                                "label": "false",
+                                                "logic": {},
+                                                "children": [],
+                                                "kind": "flowblock"
+                                            },
+                                            "logic": {
+                                                "cond": "a[i] > a[i+1]"
+                                            },
+                                            "kind": "flowif"
+                                        },
+                                        {
+                                            "logic": {
+                                                "expr": "i = i + 1"
+                                            },
+                                            "kind": "flowoperation"
+                                        }
+                                    ],
+                                    "kind": "flowblock"
+                                },
+                                "logic": {
+                                    "cond": "i < m-1"
+                                },
+                                "kind": "flowwhile"
+                            },
+                            {
+                                "logic": {
+                                    "expr": "m = m-1"
+                                },
+                                "kind": "flowoperation"
+                            }
+                        ],
+                        "kind": "flowblock"
+                    },
+                    "logic": {
+                        "cond": "m > 1"
+                    },
+                    "kind": "flowwhile"
+                },
+                {
+                    "logic": {
+                        "formatString": "Enter search value: %value"
+                    },
+                    "kind": "flowin"
+                },
+                {
+                    "logic": {
+                        "expr": "i = iters = 0"
+                    },
+                    "kind": "flowoperation"
+                },
+                {
+                    "logic": {
+                        "expr": "j = n-1"
+                    },
+                    "kind": "flowoperation"
+                },
+                {
+                    "body": {
+                        "label": "loop-body",
+                        "logic": {},
+                        "children": [
+                            {
+                                "logic": {
+                                    "expr": "m = (i+j) // 2"
+                                },
+                                "kind": "flowoperation"
+                            },
+                            {
+                                "truePart": {
+                                    "label": "true",
+                                    "logic": {},
+                                    "children": [
+                                        {
+                                            "logic": {
+                                                "expr": "j = m-1"
+                                            },
+                                            "kind": "flowoperation"
+                                        }
+                                    ],
+                                    "kind": "flowblock"
+                                },
+                                "falsePart": {
+                                    "label": "false",
+                                    "logic": {},
+                                    "children": [
+                                        {
+                                            "truePart": {
+                                                "label": "true",
+                                                "logic": {},
+                                                "children": [
+                                                    {
+                                                        "logic": {
+                                                            "expr": "i = m+1"
+                                                        },
+                                                        "kind": "flowoperation"
+                                                    }
+                                                ],
+                                                "kind": "flowblock"
+                                            },
+                                            "falsePart": {
+                                                "label": "false",
+                                                "logic": {},
+                                                "children": [
+                                                    {
+                                                        "logic": {
+                                                            "formatString": "Found %value at index %m.",
+                                                            "nl": true
+                                                        },
+                                                        "kind": "flowout"
+                                                    },
+                                                    {
+                                                        "logic": {
+                                                            "expr": "i=j"
+                                                        },
+                                                        "kind": "flowoperation"
+                                                    }
+                                                ],
+                                                "kind": "flowblock"
+                                            },
+                                            "logic": {
+                                                "cond": "a[m] < value"
+                                            },
+                                            "kind": "flowif"
+                                        }
+                                    ],
+                                    "kind": "flowblock"
+                                },
+                                "logic": {
+                                    "cond": "a[m] > value"
+                                },
+                                "kind": "flowif"
+                            },
+                            {
+                                "logic": {
+                                    "expr": "iters = iters+1"
+                                },
+                                "kind": "flowoperation"
+                            }
+                        ],
+                        "kind": "flowblock"
+                    },
+                    "logic": {
+                        "cond": "i < j"
+                    },
+                    "kind": "flowwhile"
+                },
+                {
+                    "logic": {
+                        "formatString": "Algorithm made %iters iterations.",
+                        "nl": true
+                    },
+                    "kind": "flowout"
+                }
+            ],
+            "kind": "flowblock"
+        }
+    ],
+    "kind": "flowblock"
+}

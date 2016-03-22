@@ -1,2 +1,1 @@
-docroot=/var/www/progflow
-srctree=src
+entry=src:/var/www/progflow
