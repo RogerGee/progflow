@@ -122,6 +122,8 @@ function initPage() {
     mainPanel.addButtonA("ret");
     mainPanel.addButtonA("proc",buttonMakeProcNode);
     mainPanel.addBreak();
+    mainPanel.addButtonB("delete block",buttonDeleteAction);
+    mainPanel.addBreak();
     mainPanel.addButtonB("C++");
     mainPanel.addButtonB("Python");
     mainPanel.addButtonB("exec",buttonExec);
@@ -368,6 +370,10 @@ function buttonMakeWhileNode() {
 function buttonMakeProcNode() {
     // add a procedure node whose name is unique
 
+}
+
+function buttonDeleteAction() {
+    context.deleteAction();
 }
 
 function buttonExec() {

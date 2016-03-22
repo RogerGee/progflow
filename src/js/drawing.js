@@ -352,6 +352,13 @@ function DrawingContext(canvas,canvasView,program) {
         }
     }
 
+    function onCanvasKeyUp(e) {
+        var code = 'which' in e ? e.which : e.keyCode;
+        if (code == KEYCODES.DELETE) {
+            currentBlock.ondelete();
+        }
+    }
+
     // topLevelLogic() - gets the top-level logic object
     function topLevelLogic() {
         var lo = topBlock.getLogic();
@@ -388,6 +395,8 @@ function DrawingContext(canvas,canvasView,program) {
     ctx.textWidth = textWidth;
     ctx.onmodify = function(){modified = true;};
     canvas.onclick = onCanvasClick;
+    canvasView.onkeyup = onCanvasKeyUp; // the view has input focus
+    this.deleteAction = function(){currentBlock.ondelete();};
 
     topBlock = currentBlock = new FlowBlockVisual(ctx,program.label);
     topBlock.setHeightChangeCallback(resizeCanvas);
@@ -588,6 +597,17 @@ function FlowBlockVisual(ctx,label,block,rep) {
         return null;
     }
 
+    // ondelete() - delete any currently selected child from our list of children
+    function ondelete() {
+        var index = getToggledIndex();
+        if (index >= 0) {
+            children[index].ontoggle();
+            children.splice(index,1);
+            ctx.onmodify();
+            recalcHeight(); // this will redraw the screen
+        }
+    }
+
     // getHeight() - we need to be able to export our height to somebody else;
     // the height value is how many y-units we have (which is always one more than
     // the maximum positive y coordinate available)
@@ -632,6 +652,7 @@ function FlowBlockVisual(ctx,label,block,rep) {
                 child.ontoggle();
             }
         }
+        ctx.onmodify();
 
         recalcHeight();
     }
@@ -780,6 +801,7 @@ function FlowBlockVisual(ctx,label,block,rep) {
     this.isChildToggled = isChildToggled;
     this.clearToggleExcept = clearToggleExcept;
     this.onclick = onclick;
+    this.ondelete = ondelete;
     this.type = 'block';
     this.getLabel = function(){return label;};
     this.setLabel = function(text){label = text; ctx.onmodify();};
