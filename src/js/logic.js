@@ -307,6 +307,8 @@ function FlowOperationLogic(visual,block,rep) {
 function FlowInOutLogic(visual,block,param,rep) {
     var formatString = new FormatString(
                         typeof rep == 'undefined' ? "" : rep.formatString);
+    var nl = typeof rep == 'undefined'
+                    ? true : rep.nl; // print trailing newline [output block]
 
     ////////////////////////////////////////////////////////////////////////////
     // Functions
@@ -324,6 +326,13 @@ function FlowInOutLogic(visual,block,param,rep) {
         nodePanel.addLabel("Formatted String:");
         nodePanel.addTextField('flow-io-entry',1024,formatString.fs);
         nodePanel.addBreak(false);
+        if (param == 'out') {
+            nodePanel.addLabel("Trailing newline: ");
+            nodePanel.addCheckbox("flow-io-nlbox",nl,function(){
+                nl = this.checked;
+            });
+            nodePanel.addBreak(false); nodePanel.addBreak(false);
+        }
         nodePanel.addButtonB('submit',function(){
             var newstr = nodePanel.getElementValue('flow-io-entry');
             formatString = new FormatString(newstr);
@@ -339,13 +348,21 @@ function FlowInOutLogic(visual,block,param,rep) {
             args.exited = formatString.input(block,args.next);
         }
         else {
-            formatString.output(block);
-            setTimeout(args.next,1); // throttle output
-            args.exited = true;
+            formatString.output(block,nl);
+            if (nl) {
+                // throttle line output so it is displayed
+                setTimeout(args.next,1);
+                args.exited = true;
+            }
+            else {
+                args.next();
+            }
         }
     }
 
     function getRep() {
+        if (param == 'out')
+            return {formatString: formatString.fs, nl: nl};
         return {formatString: formatString.fs};
     }
 
@@ -577,119 +594,152 @@ function FlowWhileLogic(visual,block,rep) {
 
 const SPACESEP_REGEX = /[^\s]+/g;
 const FORMAT_TOKEN_REGEX = /%[a-zA-Z_][a-zA-Z_0-9]*/g;
-const FORMAT_EXPR_GRAB_REGEX = /%{(.+)}/g;
+const FORMAT_EXPR_GRAB_REGEX = /%{(.+?)}/g; // match shortest sequence between { ... }
 
 function FormatString(fs) {
     this.fs = fs;
 }
 
-FormatString.prototype.output = function(block) {
-    var output = "", last = 0;
-    var errors = [];
+FormatString.prototype.output = function(block,newline) {
+    // process the format string
+    var ms = [], ns = [];
+    var mstate = true, nstate = true;
     FORMAT_TOKEN_REGEX.lastIndex = 0;
     FORMAT_EXPR_GRAB_REGEX.lastIndex = 0;
-    while (true) {
-        var m = FORMAT_TOKEN_REGEX.exec(this.fs); // simple variable name
-        var n = FORMAT_EXPR_GRAB_REGEX.exec(this.fs); // output expression
-
-        if (!m && !n)
-            break;
-
-        while (true) {
-            if (m && (!n || n.index >= m.index)) {
-                output += this.fs.substring(last,m.index);
-
-                // grab the variable name by stripping off the leading '%' sign; then
-                // lookup the variable's value
-                var vname = m[0].substring(1);
-                var value = block.lookupVariable(vname);
-                if (value == null) {
-                    output += "'?'";
-                    errors.push("variable '" + vname + "' is undefined");
-                }
-                else {
-                    output += String(value);
-                }
-
-                last = m.index + m[0].length;
-                m = null;
-            }
-            else if (n) {
-                output += this.fs.substring(last,n.index);
-
-                // parse the contents of the first captured group as an expression
-                var expr = new ExpressionParser(n[1],false,false);
-                if (expr.error()) {
-                    output += "'?'";
-                    errors.push(expr.errorMsg());
-                }
-                else {
-                    // evaluate the expression
-                    try {
-                        output += String(expr.evaluate(block));
-                    } catch (e) {
-                        output += "'?'";
-                        errors.push(e);
-                    }
-                }
-
-                last = n.index + n[0].length;
-                n = null;
-            }
+    while (mstate || nstate) {
+        if (mstate) {
+            var m = FORMAT_TOKEN_REGEX.exec(this.fs); // simple variable name
+            if (m)
+                ms.push(m);
             else
-                break;
+                mstate = false;
+        }
+        if (nstate) {
+            var n = FORMAT_EXPR_GRAB_REGEX.exec(this.fs); // output expression
+            if (n)
+                ns.push(n);
+            else
+                nstate = false;
+        }
+    }
+
+    // evaluate the output string
+    var i = 0, j = 0;
+    var errors = [];
+    var output = "", last = 0;
+    while (i < ms.length || j < ns.length) {
+        // build part of the output string from a variable/expression evaluation
+        if (i < ms.length && (j >= ns.length || ns[j].index > ms[i].index)) {
+            var m = ms[i++];
+            output += this.fs.substring(last,m.index);
+
+            // grab the variable name by stripping off the leading '%' sign; then
+            // lookup the variable's value
+            var vname = m[0].substring(1);
+            var value = block.lookupVariable(vname);
+            if (value == null) {
+                output += "'?'";
+                errors.push("variable '" + vname + "' is undefined");
+            }
+            else {
+                output += String(value);
+            }
+
+            last = m.index + m[0].length;
+        }
+        else if (j < ns.length) {
+            var n = ns[j++];
+            output += this.fs.substring(last,n.index);
+
+            // parse the contents of the first captured group as an expression
+            var expr = new ExpressionParser(n[1],false,false);
+            if (expr.error()) {
+                output += "'?'";
+                errors.push(expr.errorMsg());
+            }
+            else {
+                // evaluate the expression
+                try {
+                    output += String(expr.evaluate(block));
+                } catch (e) {
+                    output += "'?'";
+                    errors.push(e);
+                }
+            }
+
+            last = n.index + n[0].length;
         }
     }
     output += this.fs.substring(last,this.fs.length);
 
-    // we consider the output block errors to be warnings
+    // output the string; we consider the output block errors to be warnings
     for (var e of errors)
         terminal.addLine("output block: warning: " + e,'warning-line');
-    terminal.addLine(output);
+    if (newline)
+        terminal.addLine(output);
+    else {
+        var ln = terminal.newLine();
+        ln.addText(output);
+        ln.finish(false);
+    }
 };
 
 FormatString.prototype.input = function(block,next) {
-    var things = [], last = 0, errors = [];
+    // process the format string
+    var ms = [], ns = [];
+    var mstate = true, nstate = true;
     FORMAT_TOKEN_REGEX.lastIndex = 0;
     FORMAT_EXPR_GRAB_REGEX.lastIndex = 0;
-    while (true) {
-        var m = FORMAT_TOKEN_REGEX.exec(this.fs); // simple variable assignment
-        var n = FORMAT_EXPR_GRAB_REGEX.exec(this.fs); // l-val from expression
-        if (!m && !n)
-            break;
-
-        while (true) {
-            if (m && (!n || n.index >= m.index)) {
-                things.push({s:this.fs.substring(last,m.index)}); // prompt text
-                things.push({v:m[0].substring(1)}); // variable
-                last = m.index + m[0].length;
-                m = null;
-            }
-            else if (n) {
-                var expr = new ExpressionParser(n[1],false,false);
-                things.push({s:this.fs.substring(last,n.index)}); // prompt text
-                if (expr.error()) {
-                    errors.push("parse error: " + expr.errorMsg());
-                }
-                else if (typeof expr.parseTree().root.lval == 'undefined') {
-                    // the expression must evaluate to an l-value
-                    errors.push("expression '" + expr.expr() + "' is not assignable");
-                }
-                else {
-                    // add the expression that will generate an l-value
-                    things.push({e:expr});
-                }
-                last = n.index + n[0].length;
-                n = null;
-            }
+    while (mstate || nstate) {
+        if (mstate) {
+            var m = FORMAT_TOKEN_REGEX.exec(this.fs); // simple variable name
+            if (m)
+                ms.push(m);
             else
-                break;
+                mstate = false;
+        }
+        if (nstate) {
+            var n = FORMAT_EXPR_GRAB_REGEX.exec(this.fs); // output expression
+            if (n)
+                ns.push(n);
+            else
+                nstate = false;
         }
     }
-    var final = this.fs.substring(last,this.fs.length);
-    if (final != "")
+
+    // create descriptions of the necessary input operations (i.e. 'things')
+    var final;
+    var i = 0, j = 0;
+    var things = [], last = 0, errors = [];
+    while (i < ms.length || j < ns.length) {
+        if (i < ms.length && (j >= ns.length || ns[j].index > ms[i].index)) {
+            var m = ms[i++];
+            things.push({s:this.fs.substring(last,m.index)}); // prompt text
+            things.push({v:m[0].substring(1)}); // variable
+            last = m.index + m[0].length;
+        }
+        else if (j < ns.length) {
+            var n = ns[j++];
+            var expr = new ExpressionParser(n[1],false,false);
+            things.push({s:this.fs.substring(last,n.index)}); // prompt text
+            if (expr.error()) {
+                errors.push("parse error: " + expr.errorMsg());
+            }
+            else if (typeof expr.parseTree().root.lval == 'undefined') {
+                // the expression must evaluate to an l-value
+                errors.push("expression '" + expr.expr() + "' is not assignable");
+            }
+            else {
+                // add the expression that will generate an l-value
+                things.push({e:expr});
+            }
+            last = n.index + n[0].length;
+        }
+    }
+    if ((final = this.fs.substring(last,this.fs.length)) != "")
         things.push({s:final});
 
+    // define an object that can process the input requests
     var cb = function(){
         this.iter = 0;
         this.things = things;
@@ -706,7 +756,7 @@ FormatString.prototype.input = function(block,next) {
                 var done = this.iter+1 >= this.things.length;
                 if (this.extra.length > 0) {
                     // use tokens that were previously read
-                    inputRequest(this.extra[0]);
+                    this.inputRequest(this.extra[0]);
                     this.extra.splice(0,1); // consume token
 
                     // if we are done with the input operation, call the
@@ -750,6 +800,9 @@ FormatString.prototype.input = function(block,next) {
                 return true; // 'true' means exited (due to waiting on input)
             }
         }
+
+        next(); // original callback
+        return false;
     };
     cb.prototype.inputRequest = function(tok) {
         // consume an input request (aka a 'thing') and process it

@@ -20,6 +20,12 @@ function initPage() {
     mainPanel.id = 'div-main-panel';
     mainPanel.className = 'div-main-panel';
 
+    mainPanel.addElement = function(tagKind,id,className) {
+        var child = document.createElement(tagKind);
+        child.id = id;
+        child.className = className;
+        this.appendChild(child);
+    };
     mainPanel.addBreak = function(visible) {
         if (typeof visible == 'undefined')
             visible = true;
@@ -71,6 +77,15 @@ function initPage() {
         lbl.className = bold ? 'control-panel-label-bold' : 'control-panel-label';
         this.appendChild(lbl);
     };
+    mainPanel.addCheckbox = function(id,defaultState,callback) {
+        var cb = document.createElement("input");
+        cb.id = id;
+        cb.className = "control-panel-checkbox";
+        cb.type = "checkbox";
+        cb.checked = defaultState;
+        cb.onclick = callback;
+        this.appendChild(cb);
+    };
     mainPanel.getElementValue = function(id) {
         var elem = document.getElementById(id);
         return elem.value;
@@ -81,11 +96,13 @@ function initPage() {
     nodePanel.id = 'div-node-panel';
     nodePanel.className = 'node-panel-view';
     nodePanel.activated = false;
+    nodePanel.addElement = mainPanel.addElement;
     nodePanel.addBreak = mainPanel.addBreak;
     nodePanel.addTextField = mainPanel.addTextField;
     nodePanel.addButtonA = mainPanel.addButtonA;
     nodePanel.addButtonB = mainPanel.addButtonB;
     nodePanel.addLabel = mainPanel.addLabel;
+    nodePanel.addCheckbox = mainPanel.addCheckbox;
     nodePanel.getElementValue = mainPanel.getElementValue;
 
     // create main panel buttons

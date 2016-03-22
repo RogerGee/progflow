@@ -1,0 +1,84 @@
+{
+    "label": "mult-table",
+    "logic": {},
+    "children": [
+        {
+            "label": "main",
+            "logic": {},
+            "children": [
+                {
+                    "logic": {
+                        "formatString": "Enter number of rows/columns: %n"
+                    },
+                    "kind": "flowin"
+                },
+                {
+                    "logic": {
+                        "expr": "i = 1"
+                    },
+                    "kind": "flowoperation"
+                },
+                {
+                    "body": {
+                        "label": "loop-body",
+                        "logic": {},
+                        "children": [
+                            {
+                                "logic": {
+                                    "expr": "j = 1"
+                                },
+                                "kind": "flowoperation"
+                            },
+                            {
+                                "body": {
+                                    "label": "loop-body",
+                                    "logic": {},
+                                    "children": [
+                                        {
+                                            "logic": {
+                                                "formatString": "%{i*j} ",
+                                                "nl": false
+                                            },
+                                            "kind": "flowout"
+                                        },
+                                        {
+                                            "logic": {
+                                                "expr": "j = j + 1"
+                                            },
+                                            "kind": "flowoperation"
+                                        }
+                                    ],
+                                    "kind": "flowblock"
+                                },
+                                "logic": {
+                                    "cond": "j <= n"
+                                },
+                                "kind": "flowwhile"
+                            },
+                            {
+                                "logic": {
+                                    "formatString": "",
+                                    "nl": true
+                                },
+                                "kind": "flowout"
+                            },
+                            {
+                                "logic": {
+                                    "expr": "i = i + 1"
+                                },
+                                "kind": "flowoperation"
+                            }
+                        ],
+                        "kind": "flowblock"
+                    },
+                    "logic": {
+                        "cond": "i <= n"
+                    },
+                    "kind": "flowwhile"
+                }
+            ],
+            "kind": "flowblock"
+        }
+    ],
+    "kind": "flowblock"
+}
