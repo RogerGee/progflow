@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<meta charset="utf-8" />
+
+<html>
+    <head>
+        <link rel='stylesheet' href='pages.css'>
+    </head>
+    <body>
+        <h1>Input Blocks</h1>
+
+        <p>
+            A computer program wouldn't be very useful if it couldn't read user
+            input. <i>Input blocks</i> allow you to prompt the user for an input
+            value and assign those values to variables. Input blocks use <a
+            href="help-formatstr.html">format strings</a> to specify the input
+            operation (just like <a href="help-out.html">output blocks</a>).
+            When a variable is specified in a format string, the input block
+            requests input from the terminal emulator at the bottom of the
+            screen. The user then enters input and the block assigns it to the
+            specified variable(s).
+        </p>
+
+        <p>
+            Non-variable text of the input block's format string will be printed
+            up until a variable is specified. This is true for each variable in
+            the format string. For example, the following format string will
+            print <code>Enter number:&nbsp;</code> and then read input that will
+            be assigned to variable <code>a</code>.
+        </p>
+
+        <code class="page-indent">
+            Enter number: %a
+        </code>
+
+        <p>This produces the following (given input 5):</p>
+
+        <div class="page-indent output">
+            Enter number: <span class="input">5</span><br>
+        </div>
+
+        <p>Here's a more complicated format string example:</p>
+
+        <code class="page-indent">
+            Enter %a and then %b.
+        </code>
+
+        <p>This produces the following (given input 5 and 8):</p>
+
+        <div class="page-indent output">
+            Enter <span class="input">5</span><br>
+            and then <span class="input">8</span><br>
+            .
+        </div>
+
+        <p>
+            It is generally not a good idea to have part of the output prompt
+            after a variable in an input block format string. As you can see,
+            the user entering a line makes the message span multiple lines.
+        </p>
+
+        <p>
+            Finally, there are a couple of things to know about how input is
+            read and processed by the block:
+        </p>
+
+        <ul>
+            <li>
+                Every line of input is split up into whitespace-separated
+                tokens. The block then converts each token into a number and
+                assigns it to a variable. Since you can specify more than one
+                variable in a format string, the block can assign multiple
+                values from one line of input. If the user didn't supply enough
+                input on a line, another line is requested (and so on until all
+                of the required input has been read).
+            </li>
+            <li>
+                Extra tokens read by the block are not available to future
+                blocks. In other words, each line of input is available only to
+                the block that requested it.
+            </li>
+            <li>
+                The Simulator only operates on numbers; therefore the user
+                should not enter any non-numeric input string. If they do, the
+                Simulator will fail and stop execution.
+            </li>
+            <li>
+                If an empty line is read, the block will do nothing and request
+                another line.
+            </li>
+        </ul>
+    </body>
+</html>

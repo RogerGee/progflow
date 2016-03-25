@@ -15,7 +15,7 @@
             single expression which can include any of the following operations:
         </p>
 
-        <table style="margin: 2%" cellspacing=10>
+        <table class="page-indent" cellspacing=10>
             <tr>
                 <td>5</td>
                 <td><code> ( A ) </code></td>
@@ -117,7 +117,7 @@
             For example:
         </p>
 
-            <code style="margin: 2%"> a = 2+2 </code>
+            <code class="page-indent"> a = 2+2 </code>
 
         <p>
             This operation evaluates <code>2+2</code> and then assigns that value
@@ -129,10 +129,11 @@
 
         <p>
             You can do more with variables than just assign them values. You can
-            also use them in an operation (i.e. in the right-hand side of an assignment):
+            also use them in an expression (i.e. in the right-hand side of an
+            assignment):
         </p>
 
-        <table style="margin: 2%" cellspacing=10>
+        <table class="page-indent" cellspacing=10>
             <tr>
                 <td><code> a = b+c </code></td>
                 <td>
@@ -164,7 +165,7 @@
             before the other ones. This allows you to do things like:
         </p>
 
-        <table style="margin: 2%" cellspacing=10>
+        <table class="page-indent" cellspacing=10>
             <tr>
                 <td><code> a = b = 5 </code></td>
                 <td>
@@ -191,20 +192,21 @@
 
         <p>
             Finally, it is important to talk about an important concept in
-            computer programming called <i>referential opacity</i>, or, in common
-            terms, <i>side effects</i>. Whenever you assign a value to a variable,
-            you change its value and subsequently all values that involve that
-            variable later on (i.e. it has a side effect). Alternatively, when
-            you have an expression that doesn't have any variables it creates
-            what is called <i>referential transparency</i>. If an expression is
-            referentially transparent, you can "see through it" to its evaluation
-            at any instance in time. For example, <code>10*2</code> can always
-            be replaced with the value <code>20</code>. However an expression
-            involving a variable remembers the variable's value from some previous
-            operation. For example, it is impossible to know (i.e. we can't "see
-            the value") the evaluation of <code>a*2</code> without knowing the
-            value of <code>a</code> from some previous operation. Keep these concepts
-            in mind as you design operations using the Simulator.
+            computer programming called <i>referential opacity</i>, or, in
+            common terms, <i>side effects</i>. Whenever you assign a value to a
+            variable, you change its value and subsequently all values that
+            involve that variable later on (i.e. it has a side effect).
+            Alternatively, when you have an expression that doesn't have any
+            variables it creates what is called <i>referential transparency</i>.
+            If an expression is referentially transparent, you can "see through
+            it" to its evaluation at any instance in time. For example,
+            <code>10*2</code> can always be replaced with the value
+            <code>20</code>. However an expression involving a variable
+            remembers the variable's value from some previous operation. For
+            example, it is impossible to know the evaluation of <code>a*2</code>
+            without knowing the value of <code>a</code> from some previous
+            operation. Keep these concepts in mind as you design operations
+            using the Simulator.
         </p>
     </body>
 </html>

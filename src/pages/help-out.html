@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<meta charset="utf-8" />
+
+<html>
+    <head>
+        <link rel='stylesheet' href='pages.css'>
+    </head>
+    <body>
+        <h1>Output Blocks</h1>
+
+        <p>
+            Output blocks allow the program to write output to the terminal
+            emulator at the bottom of the screen. Output blocks use <a
+            href="help-formatstr.html">format strings</a> to  specify how output
+            is written to the terminal screen. Any format string
+            variables/expressions are substituted with their evaluation into the
+            resulting output. As such, variables are never modified by an output
+            block.
+        </p>
+
+        <p>
+            If a variable doesn't exist or an expression is incorrect, the
+            Simulator will display a warning and the output block will print
+            <code>'?'</code> in place of the value. As such, an output block
+            will never fail.
+        </p>
+
+        <p>
+            The output block allows you to either print or omit a trailing
+            <i>newline</i>. A newline is a whitespace character that creates a
+            line separation in the output. By default, an output block will
+            include a trailing newline. Omitting the newline is useful if you
+            want to allow multiple output blocks to write to the same line.
+        </p>
+    </body>
+</html>

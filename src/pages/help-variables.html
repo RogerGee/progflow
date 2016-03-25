@@ -26,13 +26,13 @@
             called <i>scope</i>. Scope is the part of the computer program in
             which the variable is valid (i.e. defined). Another useful term
             associated with scope is <i>lifetime</i>. The lifetime of a variable
-            is how long the variable is defined in the program's execution. This
-            is similar but different from scope which describes the "space" in
-            which a variable is defined. In the Simulator, a variable exists throughout
-            its scope (meaning the variable's scope and lifetime describe the same
-            thing). When a variable is created, it exists in the scope in which
-            it was created. Once a variable's scope ends, the variable is destroyed
-            and becomes unavailable to the program.
+            is how long the variable exists in the program's execution. This is
+            similar but different from scope which describes the "space" in
+            which a variable is defined. In the Simulator, a variable exists
+            throughout its scope (meaning the variable's scope and lifetime
+            describe the same thing). When a variable is created, it exists in
+            the scope in which it was created. Once a variable's scope ends, the
+            variable is destroyed and becomes unavailable to the program.
         </p>
 
         <p>
@@ -48,17 +48,17 @@
 
         <p>
             What's confusing about scope is that some scopes may overlap (i.e.
-            one scope is nested within another). The scope that contains the other
-            is called the wider scope or overlapping scope. Likewise the nested
-            scope is called the narrower or overlapped scope. All variables
-            defined in the wider scope are available to the narrower scope given
-            that they were already defined before the narrower scope was reached.
-            However this doesn't work both ways. Since the narrower scope ends
-            before the wider scope, its variables are destroyed before the wider
-            scope could access them. Make sure that variables are first referenced
-            in the widest possible scope so that they can be accessed where needed.
-            Sometimes you may just need to assign a dummy value to create a
-            variable needed at a wider scope.
+            one scope is nested within another). The scope that contains the
+            other is called the wider scope or overlapping scope. Likewise the
+            nested scope is called the narrower or overlapped scope. All
+            variables defined in the wider scope are available to the narrower
+            scope given that they were already defined before the narrower scope
+            was reached. However this doesn't work both ways. Since the narrower
+            scope ends before the wider scope, its variables are destroyed
+            before the wider scope could access them. Make sure that variables
+            are first referenced in the widest possible scope so that they can
+            be accessed where needed. Sometimes you may just need to assign a
+            dummy value to create a variable needed at a wider scope.
         </p>
 
     </body>

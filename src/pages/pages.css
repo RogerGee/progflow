@@ -8,5 +8,25 @@ body {
 code {
     background-color: #f7f7f9;
     border: 1px solid #e1e1e8;
-    padding: 2;
+    padding: 2px;
+}
+
+.output {
+    background-color: black;
+    color: white;
+}
+
+div.output {
+    font-family: monospace;
+    padding: 5px;
+}
+
+span.input {
+    color: red;
+    font-weight: bold;
+}
+
+.page-indent {
+    margin-left: 2%;
+    margin-right: 2%;
 }

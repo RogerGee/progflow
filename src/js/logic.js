@@ -771,13 +771,15 @@ FormatString.prototype.input = function(block,next) {
                 }
 
                 var obj = this;
-                terminal.inputMode(function(ttext){
+                var inputFunc = function(ttext){
                     // we need to have this try block since this is called
                     // from a different call frame stack
                     try {
                         var ts = ttext.match(SPACESEP_REGEX);
                         if (!ts) {
-                            throw "input sequence was empty";
+                            // no input; request another line
+                            terminal.inputMode(inputFunc);
+                            return true;
                         }
 
                         // update variable value (or create if not seen); save
@@ -795,7 +797,8 @@ FormatString.prototype.input = function(block,next) {
                         next(); // original callback
                     else
                         obj.next();
-                });
+                };
+                terminal.inputMode(inputFunc);
 
                 return true; // 'true' means exited (due to waiting on input)
             }
@@ -807,12 +810,16 @@ FormatString.prototype.input = function(block,next) {
     cb.prototype.inputRequest = function(tok) {
         // consume an input request (aka a 'thing') and process it
         var thing = this.things[this.iter++];
+        var value = Number(tok);
+
+        if (Number.isNaN(value))
+            throw "value '"+tok+"' is not a number";
 
         if ('v' in thing) {
-            block.updateCreateVariable(thing.v,Number(tok));
+            block.updateCreateVariable(thing.v,value);
         }
         else if ('e' in thing) {
-            thing.e.parseTree().root.lval(block)(Number(tok));
+            thing.e.parseTree().root.lval(block)(value);
         }
     };
 

@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<meta charset="utf-8" />
+
+<html>
+    <head>
+        <link rel='stylesheet' href='pages.css'>
+    </head>
+    <body>
+        <h1>Format Strings</h1>
+
+        <p>
+            Format strings are used to format input/output with information from
+            the computer program. They are used by input/output blocks. Format
+            strings used by input blocks are used to format input operations
+            (see <a href="help-in.html">input blocks</a>) inside a text prompt.
+            Likewise they are used by output blocks to format
+            variables/expressions into a line of output (see <a
+            href="help-out.html">output blocks</a>).
+        </p>
+
+        <p>
+            There are two kinds of format strings: <i>simple</i> and
+            <i>complex</i>. A simple format string allows you to specify exactly
+            one or more variables by name. Each variable is prefixed by a
+            percent sign <code>%</code>. Here is an example:
+        </p>
+
+        <code class="page-indent">The value of variable 'thing' is '%thing'.</code>
+
+        <p>
+            If an output block were to use this format string and given that the
+            variable <code>thing</code> has the value <code>5</code>, then the
+            output would look like:
+        </p>
+
+        <code class="page-indent output">The value of variable 'thing' is '5'.</code>
+
+        <p>
+            Notice how <code>%thing</code> wasn't affected by the single quotes.
+            This is because single quotes can never be a part of a <a
+            href="help-variables.html">variable</a> name. However consider a
+            case such as:
+        </p>
+
+        <code class="page-indent">Surrounded by underscores: _%thing_</code>
+
+        <p>
+            Unfortunately this doesn't do what we would like (i.e. surround the
+            value of <i>thing</i> with underscores). This is because an
+            underscore can be a part of the variable name. Instead we get the
+            following output:
+        </p>
+
+        <div class="page-indent output">
+            <span>
+                <i>output block: warning: variable 'thing_' is undefined</i> <br></br>
+                Surrounded by underscores: _'?'
+            </span>
+        </div>
+
+        <p>
+            Fortunately we can get around this using complex format strings. A
+            complex format string uses curly braces <code>{ }</code> after the
+            percent sign <code>%</code> to denote an expression to evaluate. The
+            expression could be a single variable name, an indexed variable or a
+            mathematical expression. Take special care with input blocks since
+            they require that the expression produce an assignable value (e.g. a
+            variable). Here is the previous example that behaves properly using
+            a complex format string:
+        </p>
+
+        <code class="page-indent">Surrounded by underscores: _%{thing}_</code>
+
+        <p>will produce</p>
+
+        <div class="page-indent output">
+            Surrounded by underscores: _5_
+        </div>
+
+        <p>
+            Complex format strings can evaluate mathematical expressions like an
+            operation block. This is useful in both input and output blocks. If
+            you are reading into a variable index you <u>must</u> use a complex
+            format string. For output blocks it may be useful to do an operation
+            inline instead of making another block for it. Here is an example of an
+            expression being evaluated when a format string is output:
+        </p>
+
+        <code class="page-indent">%thing*%thing = %{thing*thing}</code>
+
+        <p>will produce</p>
+
+        <div class="page-indent output">
+            5*5 = 25
+        </div>
+    </body>
+</html>
