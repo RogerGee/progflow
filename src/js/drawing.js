@@ -43,6 +43,9 @@ function createVisual(ctx,kind,block,rep) {
     if (kind == 'flowwhile') {
         return new FlowWhileVisual(ctx,"",block,rep);
     }
+    if (kind == 'flowbreak') {
+        return new FlowBreakVisual(ctx,"",block,rep);
+    }
 
     return null;
 }
@@ -1301,4 +1304,87 @@ function FlowWhileVisual(ctx,label,block,rep) {
         body = new FlowBlockVisual(ctx,"loop-body",block);
         logic = new FlowWhileLogic(this,block);
     }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// FlowBreakVisual
+////////////////////////////////////////////////////////////////////////////////
+
+function FlowBreakVisual(ctx,label,block,rep) {
+    var selected = false;
+    var logic;
+
+    ////////////////////////////////////////////////////////////////////////////
+    // Functions
+    ////////////////////////////////////////////////////////////////////////////
+
+    function draw() {
+        ctx.drawPolygon(getBounds());
+        ctx.save();
+        ctx.setTransform(1,0,0,1,0,0);
+        if (selected) {
+            ctx.fillStyle = SELECT_COLOR;
+            ctx.globalAlpha = SELECT_ALPHA;
+            ctx.fill();
+            ctx.globalAlpha = 1.0;
+        }
+        ctx.lineWidth = 1.0;
+        ctx.stroke();
+        ctx.restore();
+
+        var w = getBounds('right') - getBounds('left');
+        ctx.drawText('break',0,0,w,0.5,true);
+    }
+
+    function ontoggle() {
+        selected = !selected;
+        logic.ontoggle(selected);
+    }
+
+    function onclick(x,y) {
+        // run pnpoly to see if the shape was clicked
+        if (pnpoly(getBounds(),x,y))
+            return this;
+        return null;
+    }
+
+    function getHeight() {
+        return 2;
+    }
+
+    function getBounds(kind) {
+        if (kind == "upper" || kind == "arrowUpper")
+            return -0.5;
+        if (kind == "lower") // no arrow lower since break conceptually ends execution
+            return 1.5;
+        if (kind == "left")
+            return -.5;
+        if (kind == "right")
+            return .5;
+        if (typeof kind == "undefined")
+            return [-.5,.5, -.3,-.5, .3,-.5, .5,.5];
+        return null;
+    }
+
+    function getRep() {
+        // save representation is very simple: we just need to remember that
+        // this is a break block
+        return {kind: 'flowbreak'};
+    }
+
+    ////////////////////////////////////////////////////////////////////////////
+    // Initialization
+    ////////////////////////////////////////////////////////////////////////////
+
+    this.draw = draw;
+    this.ontoggle = ontoggle;
+    this.onclick = onclick;
+    this.getHeight = getHeight;
+    this.getBounds = getBounds;
+    this.isToggled = function(){return selected;};
+    this.getLogic = function(){return logic;};
+    this.getRep = getRep;
+    this.type = 'break';
+
+    logic = new FlowBreakLogic(this,block);
 }

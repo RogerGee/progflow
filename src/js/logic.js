@@ -128,7 +128,7 @@ function FlowBlockLogic(visual,block,rep) {
 
     // exec() - executes each of the child nodes in a context that provides
     // (optionally) the specified arguments; the 'next' callback controls what
-    // happens after
+    // happens after the children have been executed
     function exec(args) {
         var it = visual.newChildIter();
 
@@ -141,7 +141,8 @@ function FlowBlockLogic(visual,block,rep) {
         if (typeof args == 'undefined') {
             args = {
                 next: Function.prototype, // does nothing
-                exited: false // is the simulator exiting abnormally?
+                exited: false, // is the simulator exiting abnormally?
+                breaking: false // is the simulator breaking from a loop?
             }
         }
 
@@ -166,6 +167,7 @@ function FlowBlockLogic(visual,block,rep) {
             // copy exit status; if we did exit, then newargs won't be manipulated
             // until the simulator is restarted (e.g. by an input event)
             args.exited = args.exited || newargs.exited;
+            args.breaking = args.breaking || newargs.breaking; // also copy break status
             newargs.exited = false;
 
             // if the return value is defined, call the 'next' function to continue; a
@@ -177,7 +179,8 @@ function FlowBlockLogic(visual,block,rep) {
         };
         var newargs = {
             next: nx,
-            exited: false
+            exited: false,
+            breaking: false
         };
         nx();
     }
@@ -547,6 +550,12 @@ function FlowWhileLogic(visual,block,rep) {
                         newargs.restart = t;
                         return;
                     }
+                    if (newargs.breaking) {
+                        // when breaking from a loop we need to set cond to false
+                        // so that the next callback will be invoked
+                        cond = false;
+                        break;
+                    }
                 }
             } catch (e) {
                 terminal.addLine('while block: error: '+e,'error-line');
@@ -562,6 +571,7 @@ function FlowWhileLogic(visual,block,rep) {
         newargs = {
             next: fn,
             exited: false,
+            breaking: false,
             restart: Function.prototype, // nop
             iters: 100000
         };
@@ -586,6 +596,22 @@ function FlowWhileLogic(visual,block,rep) {
     if (expr.error())
         throw expr.errorMsg();
     visual.setLabel(expr.expr());
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// FlowBreakLogic
+////////////////////////////////////////////////////////////////////////////////
+
+function FlowBreakLogic(visual,block,rep) {
+    this.ontoggle = function(state) {
+        // no implementation
+    };
+
+    this.exec = function(args) {
+        args.breaking = true;
+
+        // we do not call args.next
+    };
 }
 
 ////////////////////////////////////////////////////////////////////////////////

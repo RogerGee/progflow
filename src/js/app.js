@@ -119,6 +119,7 @@ function initPage() {
     mainPanel.addButtonA("out",buttonMakeOutNode);
     mainPanel.addButtonA("if",buttonMakeIfNode);
     mainPanel.addButtonA("while",buttonMakeWhileNode);
+    mainPanel.addButtonA("break",buttonMakeBreakNode);
     mainPanel.addButtonA("ret");
     mainPanel.addButtonA("proc",buttonMakeProcNode);
     mainPanel.addBreak();
@@ -365,6 +366,10 @@ function buttonMakeIfNode() {
 
 function buttonMakeWhileNode() {
     context.addNode('flowwhile');
+}
+
+function buttonMakeBreakNode() {
+    context.addNode('flowbreak');
 }
 
 function buttonMakeProcNode() {
