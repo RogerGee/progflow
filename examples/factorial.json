@@ -1,0 +1,65 @@
+{
+    "label": "program",
+    "logic": {},
+    "children": [
+        {
+            "label": "main",
+            "logic": {},
+            "children": [
+                {
+                    "logic": {
+                        "formatString": "Enter a number: %n"
+                    },
+                    "kind": "flowin"
+                },
+                {
+                    "logic": {
+                        "formatString": "%n! => %{factorial(n)}",
+                        "nl": true
+                    },
+                    "kind": "flowout"
+                }
+            ],
+            "kind": "flowblock"
+        },
+        {
+            "label": "factorial",
+            "logic": {},
+            "children": [
+                {
+                    "truePart": {
+                        "label": "true",
+                        "logic": {},
+                        "children": [
+                            {
+                                "logic": {
+                                    "expr": "1"
+                                },
+                                "kind": "flowret"
+                            }
+                        ],
+                        "kind": "flowblock"
+                    },
+                    "falsePart": {
+                        "label": "false",
+                        "logic": {},
+                        "children": [],
+                        "kind": "flowblock"
+                    },
+                    "logic": {
+                        "cond": "arg1 <= 1"
+                    },
+                    "kind": "flowif"
+                },
+                {
+                    "logic": {
+                        "expr": "arg1 * factorial(arg1-1)"
+                    },
+                    "kind": "flowret"
+                }
+            ],
+            "kind": "flowblock"
+        }
+    ],
+    "kind": "flowblock"
+}

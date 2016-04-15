@@ -1,7 +1,27 @@
 // page.js - progflow
 
+var Screen = function() {
+    this.element = document.createElement('div');
+    this.element.className = "screen";
+};
+
+Screen.prototype.show = function() {
+    if ('screen' in this) {
+        this.screen.show();
+    }
+    document.body.appendChild(this.element);
+};
+
+Screen.prototype.close = function() {
+    if ('screen' in this) {
+        this.screen.close();
+    }
+    document.body.removeChild(this.element);
+}
+
 // Page: a popup view that displays an HTML page and allows for navigation
 var Page = function(url) {
+    var thisobj = this;
     var firstPage = true;
     var element, content, backBtn;
 
@@ -17,7 +37,7 @@ var Page = function(url) {
     this.backBtn.className = "page-button";
     this.btnPanel.className = "page-button-panel";
     this.closeBtn.innerHTML = "Close";
-    this.closeBtn.onclick = function(){document.body.removeChild(element);};
+    this.closeBtn.onclick = function(){thisobj.close();};
     this.backBtn.innerHTML = "Back";
     this.backBtn.style.visibility = "hidden";
     this.backBtn.onclick = function() {
@@ -46,30 +66,28 @@ var Page = function(url) {
     this.btnPanel.appendChild(this.backBtn);
     this.btnPanel.appendChild(this.closeBtn);
     this.element.appendChild(this.btnPanel);
+
+    this.screen = new Screen;
 }
 
-Page.prototype.show = function() {
-    document.body.appendChild(this.element);
-}
-
-Page.prototype.close = function() {
-    document.body.removeChild(this.element);
-}
-
-Page.prototype.goto = function(newurl) {
-    // change the iframes location to the new url; we use its location history
-    // to provide back functionality
-
-    this.content.location = newurl;
-}
+Page.prototype = Screen.prototype;
 
 // CustomPage: an object similar to page but with custom content specified by
 // a JavaScript object with the following attributes:
 //  - actions: array of {label,callback} for action buttons at bottom of page
 //  - content: array of HTML elements
+//  - dims: object {width, height} for dimension percentages
 var CustomPage = function(params) {
+    var element;
+    var thisobj = this;
     this.element = element = document.createElement('div');
     this.element.className = "page";
+    if ('dims' in params) {
+        var s = "width: " + params.dims.width + "%;height: "
+            + params.dims.height + "%;" + "left: " + (100 - params.dims.width)/2
+            + "%;top: " + (100 - params.dims.height)/2 + "%;";
+        this.element.style = s;
+    }
 
     this.btnPanel = document.createElement('div');
     this.btnPanel.className = "page-button-panel";
@@ -77,7 +95,7 @@ var CustomPage = function(params) {
     this.closeBtn = document.createElement('button');
     this.closeBtn.className = "page-button";
     this.closeBtn.innerHTML = "Close";
-    this.closeBtn.onclick = function(){document.body.removeChild(element);};
+    this.closeBtn.onclick = function(){thisobj.close();};
 
     this.content = document.createElement('div');
     this.content.className = "page-content";
@@ -102,12 +120,7 @@ var CustomPage = function(params) {
     }
 
     this.btnPanel.appendChild(this.closeBtn);
+    this.screen = new Screen();
 }
 
-CustomPage.prototype.show = function() {
-    document.body.appendChild(this.element);
-}
-
-CustomPage.prototype.close = function() {
-    document.body.removeChild(this.element);
-}
+CustomPage.prototype = Screen.prototype;

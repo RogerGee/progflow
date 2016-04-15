@@ -46,6 +46,9 @@ function createVisual(ctx,kind,block,rep) {
     if (kind == 'flowbreak') {
         return new FlowBreakVisual(ctx,"",block,rep);
     }
+    if (kind == 'flowret') {
+        return new FlowReturnVisual(ctx,"",block,rep);
+    }
 
     return null;
 }
@@ -265,7 +268,25 @@ function DrawingContext(canvas,canvasView,program) {
     // addBlock() - create new procedure block under top-block; this is used to
     // add top-level procedure visuals to the context
     function addBlock(label) {
-        var element = new FlowBlockVisual(ctx,label); // has no parent logic to inherit
+        // make sure label is unique identifier
+        var newlabel = label;
+        var counter = 1;
+        var found;
+        do {
+            found = topBlock.forEachChild(function(child){
+                if (child.getLabel() == newlabel) {
+                    newlabel = label + counter;
+                    counter += 1;
+                    return false;
+                }
+                return true;
+            });
+        } while (!found);
+        label = newlabel;
+
+        // create the new block; pass it a handle to the top-level (i.e. its parent)
+        // logic block so that it can access other procedures in the program
+        var element = new FlowBlockVisual(ctx,label,topBlock.getLogic());
         element.setHeightChangeCallback(resizeCanvas);
         topBlock.addChild(element);
         modified = true;
@@ -299,6 +320,35 @@ function DrawingContext(canvas,canvasView,program) {
             resizeCanvas(); // this redraws the screen
             return true;
         }
+        return false;
+    }
+
+    // atTopLevel() - returns true if the context is viewing the top-level block
+    function atTopLevel() {
+        return Object.is(topBlock,currentBlock);
+    }
+
+    // atProcedureLevel() - returns true if the context is viewing a procedure
+    // block (i.e. some level directly below top-level)
+    function atProcedureLevel() {
+        return blockStack.length > 0
+            && Object.is(blockStack[blockStack.length-1],topBlock);
+    }
+
+    // setCurBlockName() - sets the current block label IF it is not already in
+    // use amoung any of the procedures defined at the top level; returns false
+    // if the name could not be set
+    function setCurBlockName(name) {
+        if (topBlock.forEachChild(function(child){
+                if (child.getLabel() == name)
+                    return false;
+                return true; }))
+        {
+            currentBlock.setLabel(name);
+            drawScreen();
+            return true;
+        }
+
         return false;
     }
 
@@ -362,8 +412,8 @@ function DrawingContext(canvas,canvasView,program) {
         }
     }
 
-    // topLevelLogic() - gets the top-level logic object
-    function topLevelLogic() {
+    // entryPointLogic() - gets the logic object for the program's entry point
+    function entryPointLogic() {
         var lo = topBlock.getLogic();
         var main = lo.findBlock('main');
         if (main == null)
@@ -387,7 +437,7 @@ function DrawingContext(canvas,canvasView,program) {
     this.saveBlock = saveBlock;
     this.restoreBlock = restoreBlock;
     this.addNode = addNode;
-    this.topLevelLogic = topLevelLogic;
+    this.entryPointLogic = entryPointLogic;
     this.getSaveRep = getSaveRep;
     this.isModified = function(){return modified;};
     this.unmodified = function(){modified = false;};
@@ -400,7 +450,13 @@ function DrawingContext(canvas,canvasView,program) {
     canvas.onclick = onCanvasClick;
     canvasView.onkeyup = onCanvasKeyUp; // the view has input focus
     this.deleteAction = function(){currentBlock.ondelete();};
+    this.getCurBlockName = function(){return currentBlock.getLabel();};
+    this.setCurBlockName = setCurBlockName;
+    this.atTopLevel = atTopLevel;
+    this.atProcedureLevel = atProcedureLevel;
 
+    // create the top block; it is the first scope defined in the program and
+    // as such is not provided an enclosing block
     topBlock = currentBlock = new FlowBlockVisual(ctx,program.label);
     topBlock.setHeightChangeCallback(resizeCanvas);
     topBlock.setIcon(false);
@@ -744,8 +800,9 @@ function FlowBlockVisual(ctx,label,block,rep) {
     function forEachChild(callback) {
         for (var obj of children) {
             if (!callback(obj))
-                break;
+                return false;
         }
+        return true;
     }
 
     // nextChild() - grab a reference to the next child based on a user-supplied
@@ -1387,4 +1444,110 @@ function FlowBreakVisual(ctx,label,block,rep) {
     this.type = 'break';
 
     logic = new FlowBreakLogic(this,block);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// FlowReturnVisual - represents a visual element that provides a return control
+// structure
+////////////////////////////////////////////////////////////////////////////////
+
+function FlowReturnVisual(ctx,label,block,rep) {
+    var logic; // visual logic object
+    var selected = false; // has the visual been selected?
+    var wbound = 1; // absolute value of width bound
+
+    ////////////////////////////////////////////////////////////////////////////
+    // Functions
+    ////////////////////////////////////////////////////////////////////////////
+
+    // draw() - main drawing operation
+    function draw() {
+        ctx.drawPolygon(getBounds());
+        ctx.save();
+        ctx.setTransform(1,0,0,1,0,0);
+        if (selected) {
+            ctx.fillStyle = SELECT_COLOR;
+            ctx.globalAlpha = SELECT_ALPHA;
+            ctx.fill();
+            ctx.globalAlpha = 1.0;
+        }
+        ctx.lineWidth = 1.0;
+        ctx.stroke();
+        ctx.restore();
+        if (label != "") {
+            // draw label in center: maxWidth should be the width of the polygon
+            // drawn above; fontHeight should be half the height of the polygon
+            ctx.drawText(label,0,0,getBounds('right') - getBounds('left'),0.5,true);
+        }
+
+        ctx.drawText("return",0,getBounds('upper')+0.125,wbound*2,0.25,true);
+    }
+
+    function ontoggle() {
+        selected = !selected;
+        logic.ontoggle(selected);
+    }
+
+    function getHeight() {
+        return 2;
+    }
+
+    function getBounds(kind) {
+        if (kind == "upper" || kind == "arrowUpper")
+            return -0.5;
+        if (kind == "lower") // no arrow lower since return conceptually ends execution
+            return 1.5;
+        if (kind == "left")
+            return -wbound;
+        if (kind == "right")
+            return wbound;
+        if (typeof kind == "undefined")
+            return [-wbound-0.2,.5, -wbound,-.5, wbound,-.5, wbound+0.2,.5];
+        return null;
+    }
+
+    function onclick(x,y) {
+        // run pnpoly to see if the shape was clicked
+        if (pnpoly(getBounds(),x,y))
+            return this;
+        return null;
+    }
+
+    function setLabel(text) {
+        label = text;
+        var w = ctx.textWidth(label,0.5);
+        if (w > 6) // there are 6 units across the screen
+            w = 6;
+        if (w < 2)
+            w = 2;
+        wbound = w / 2;
+        ctx.onmodify();
+    }
+
+    function getRep() {
+        return {logic: logic.getRep(), kind: 'flowret'};
+    }
+
+    ////////////////////////////////////////////////////////////////////////////
+    // Initialization
+    ////////////////////////////////////////////////////////////////////////////
+
+    this.draw = draw;
+    this.ontoggle = ontoggle;
+    this.getHeight = getHeight;
+    this.getBounds = getBounds;
+    this.onclick = onclick;
+    this.isToggled = function(){return selected;};
+    this.getLogic = function(){return logic;};
+    this.getLabel = function(){return label;};
+    this.setLabel = setLabel;
+    this.getRep = getRep;
+    this.type = 'return';
+
+    if (typeof rep != 'undefined') {
+        logic = new FlowReturnLogic(this,block,rep.logic);
+    }
+    else {
+        logic = new FlowReturnLogic(this,block);
+    }
 }

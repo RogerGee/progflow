@@ -1,0 +1,126 @@
+{
+    "label": "program",
+    "logic": {},
+    "children": [
+        {
+            "label": "main",
+            "logic": {},
+            "children": [
+                {
+                    "logic": {
+                        "formatString": "Enter number: %n"
+                    },
+                    "kind": "flowin"
+                },
+                {
+                    "logic": {
+                        "formatString": "sqrt(%n) ~~ %{proc(n)}",
+                        "nl": true
+                    },
+                    "kind": "flowout"
+                }
+            ],
+            "kind": "flowblock"
+        },
+        {
+            "label": "proc",
+            "logic": {},
+            "children": [
+                {
+                    "logic": {
+                        "expr": "p = 0"
+                    },
+                    "kind": "flowoperation"
+                },
+                {
+                    "logic": {
+                        "expr": "x = arg1"
+                    },
+                    "kind": "flowoperation"
+                },
+                {
+                    "body": {
+                        "label": "loop-body",
+                        "logic": {},
+                        "children": [
+                            {
+                                "logic": {
+                                    "expr": "x = arg1 / 10^p"
+                                },
+                                "kind": "flowoperation"
+                            },
+                            {
+                                "truePart": {
+                                    "label": "true",
+                                    "logic": {},
+                                    "children": [
+                                        {
+                                            "kind": "flowbreak"
+                                        }
+                                    ],
+                                    "kind": "flowblock"
+                                },
+                                "falsePart": {
+                                    "label": "false",
+                                    "logic": {},
+                                    "children": [
+                                        {
+                                            "logic": {
+                                                "expr": "p = p + 1"
+                                            },
+                                            "kind": "flowoperation"
+                                        }
+                                    ],
+                                    "kind": "flowblock"
+                                },
+                                "logic": {
+                                    "cond": "x < 100 and x >= 1"
+                                },
+                                "kind": "flowif"
+                            }
+                        ],
+                        "kind": "flowblock"
+                    },
+                    "logic": {
+                        "cond": "true"
+                    },
+                    "kind": "flowwhile"
+                },
+                {
+                    "truePart": {
+                        "label": "true",
+                        "logic": {},
+                        "children": [
+                            {
+                                "logic": {
+                                    "expr": "6 * 10^p"
+                                },
+                                "kind": "flowret"
+                            }
+                        ],
+                        "kind": "flowblock"
+                    },
+                    "falsePart": {
+                        "label": "false",
+                        "logic": {},
+                        "children": [
+                            {
+                                "logic": {
+                                    "expr": "2 * 10^p"
+                                },
+                                "kind": "flowret"
+                            }
+                        ],
+                        "kind": "flowblock"
+                    },
+                    "logic": {
+                        "cond": "x >= 10"
+                    },
+                    "kind": "flowif"
+                }
+            ],
+            "kind": "flowblock"
+        }
+    ],
+    "kind": "flowblock"
+}

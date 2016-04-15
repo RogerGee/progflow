@@ -1,0 +1,77 @@
+{
+    "label": "program",
+    "logic": {},
+    "children": [
+        {
+            "label": "main",
+            "logic": {},
+            "children": [
+                {
+                    "logic": {
+                        "formatString": "Enter number: %n"
+                    },
+                    "kind": "flowin"
+                },
+                {
+                    "logic": {
+                        "formatString": "sqrt(%n) => %{proc(n)}",
+                        "nl": true
+                    },
+                    "kind": "flowout"
+                }
+            ],
+            "kind": "flowblock"
+        },
+        {
+            "label": "proc",
+            "logic": {},
+            "children": [
+                {
+                    "logic": {
+                        "expr": "x = arg1 / 2"
+                    },
+                    "kind": "flowoperation"
+                },
+                {
+                    "logic": {
+                        "expr": "i = 0"
+                    },
+                    "kind": "flowoperation"
+                },
+                {
+                    "body": {
+                        "label": "loop-body",
+                        "logic": {},
+                        "children": [
+                            {
+                                "logic": {
+                                    "expr": "x = 1/2 * (x + arg1/x)"
+                                },
+                                "kind": "flowoperation"
+                            },
+                            {
+                                "logic": {
+                                    "expr": "i = i + 1"
+                                },
+                                "kind": "flowoperation"
+                            }
+                        ],
+                        "kind": "flowblock"
+                    },
+                    "logic": {
+                        "cond": "i < 10000"
+                    },
+                    "kind": "flowwhile"
+                },
+                {
+                    "logic": {
+                        "expr": "x"
+                    },
+                    "kind": "flowret"
+                }
+            ],
+            "kind": "flowblock"
+        }
+    ],
+    "kind": "flowblock"
+}

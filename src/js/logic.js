@@ -148,21 +148,27 @@ function FlowBlockLogic(visual,block,rep) {
 
         // load parameters to procedure call into local variable list
         if (typeof args.params != 'undefined') {
-
+            for (var k in args.params) {
+                updateCreateVariable(k,args.params[k]);
+            }
         }
 
         var nx = function() {
+            var ret;
             var child = visual.nextChild(it);
             if (child == null) {
                 // we have executed every single child in the simulation
                 locals = stack.pop(); // undo stack frame
-                args.next(); // call the 'next' callback to continue
+                ret = args.next(); // call the 'next' callback to continue
                 args.exited = false; // we can't be exiting if this was called
-                return;
+                return ret;
             }
 
-            var logic = child.getLogic(); // get logic node via visual
-            var ret = logic.exec(newargs); // pass the child node a reference to ourself
+            // get logic node via visual; then execute the child, passing it
+            // arguments that contains a reference to this function (so subsequent
+            // children will be called recursively)
+            var logic = child.getLogic();
+            ret = logic.exec(newargs);
 
             // copy exit status; if we did exit, then newargs won't be manipulated
             // until the simulator is restarted (e.g. by an input event)
@@ -170,11 +176,7 @@ function FlowBlockLogic(visual,block,rep) {
             args.breaking = args.breaking || newargs.breaking; // also copy break status
             newargs.exited = false;
 
-            // if the return value is defined, call the 'next' function to continue; a
-            // return structure should therefore not call its next callback
-            if (typeof ret != 'undefined' && !args.exited)
-                args.next(ret);
-
+            // if there was some return value we pass it back
             return ret;
         };
         var newargs = {
@@ -182,7 +184,7 @@ function FlowBlockLogic(visual,block,rep) {
             exited: false,
             breaking: false
         };
-        nx();
+        return nx();
     }
 
     // getRep() - get save representation of logic node
@@ -275,7 +277,7 @@ function FlowOperationLogic(visual,block,rep) {
     function exec(args) {
         try {
             expr.evaluate(block);
-            args.next();
+            return args.next();
         }
         catch (e) {
             // the expression evaluation can throw errors; this stops the
@@ -346,6 +348,11 @@ function FlowInOutLogic(visual,block,param,rep) {
     }
 
     function exec(args) {
+        // I/O blocks do not process return values (since the call stack is
+        // flattened when a request is made to read/write something); therefore
+        // the managing context should not allow them inside of any procedure
+        // except main
+
         if (param == 'in') {
             // input may "block" which causes the simulator to exit
             args.exited = formatString.input(block,args.next);
@@ -353,7 +360,7 @@ function FlowInOutLogic(visual,block,param,rep) {
         else {
             formatString.output(block,nl);
             if (nl) {
-                // throttle line output so it is displayed
+                // throttle line output so it is displayed by the browser per line
                 setTimeout(args.next,1);
                 args.exited = true;
             }
@@ -440,18 +447,21 @@ function FlowIfLogic(visual,block,rep) {
         // we implement the if-statement with an if-statement: go figure; there
         // is no need to call next ourselves since we are a control structure and
         // redirect control somewhere else
+        var ret;
 
         try {
             if (expr.evaluate(block)) {
-                visual.getTruePart().getLogic().exec(args);
+                ret = visual.getTruePart().getLogic().exec(args);
             }
             else {
-                visual.getFalsePart().getLogic().exec(args);
+                ret = visual.getFalsePart().getLogic().exec(args);
             }
         } catch (e) {
             terminal.addLine("if block: error: " + e,'error-line');
             args.exited = true;
         }
+
+        return ret;
     }
 
     function getRep() {
@@ -528,6 +538,7 @@ function FlowWhileLogic(visual,block,rep) {
 
     function exec(args) {
         // we must try our best to prevent an infinite loop
+        var ret;
         var newargs;
         var fn = function() {
             var cond;
@@ -540,7 +551,7 @@ function FlowWhileLogic(visual,block,rep) {
             try {
                 // perform loop iterations
                 while (cond = expr.evaluate(block)) {
-                    visual.getBody().getLogic().exec(newargs);
+                    ret = visual.getBody().getLogic().exec(newargs);
                     if (newargs.iters <= 0)
                         throw "execution limit exceeded";
                     newargs.iters -= 1;
@@ -556,6 +567,9 @@ function FlowWhileLogic(visual,block,rep) {
                         cond = false;
                         break;
                     }
+                    // check to see if the block passed back a return value
+                    if (typeof ret != 'undefined')
+                        return;
                 }
             } catch (e) {
                 terminal.addLine('while block: error: '+e,'error-line');
@@ -564,9 +578,10 @@ function FlowWhileLogic(visual,block,rep) {
             }
 
             // if the while loop is finished running (i.e. its condition was false),
-            // then continue on to the next node in the simulation
+            // then continue on to the next node in the simulation; it may have a
+            // return value
             if (!cond)
-                args.next();
+                ret = args.next();
         };
         newargs = {
             next: fn,
@@ -579,6 +594,7 @@ function FlowWhileLogic(visual,block,rep) {
         fn();
         args.exited = args.exited || newargs.exited;
         newargs.exited = false;
+        return ret;
     }
 
     function getRep() {
@@ -612,6 +628,73 @@ function FlowBreakLogic(visual,block,rep) {
 
         // we do not call args.next
     };
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// FlowReturnLogic
+////////////////////////////////////////////////////////////////////////////////
+
+function FlowReturnLogic(visual,block,rep) {
+    var expr = new ExpressionParser(
+                    typeof rep == 'undefined' ? "0" : rep.expr,
+                    false,
+                    false );
+
+    this.ontoggle = function(state) {
+        if (!state) {
+            // reset
+            nodePanel.innerHTML = '';
+            return;
+        }
+
+        // set up HTML view for editing the expression
+        nodePanel.addLabel("Edit Return Statement:",true);
+        nodePanel.addBreak(false);
+        nodePanel.addLabel("Expression:");
+        nodePanel.addTextField('flow-return-entry',1024,expr.expr());
+        nodePanel.addBreak(false);
+        nodePanel.addButtonB('submit', function(){
+            var newexprStr = nodePanel.getElementValue('flow-return-entry');
+            var newexpr = new ExpressionParser(
+                newexprStr == "" ? "0" : newexprStr,
+                false,
+                false );
+            if (!newexpr.error()) {
+                expr = newexpr;
+                visual.setLabel(expr.expr());
+
+                // unselect the node if successfully updated
+                visual.ontoggle();
+                context.drawScreen();
+            }
+            else {
+                var msg = "return block: parse error: " + newexprStr;
+                var parseError = newexpr.errorMsg();
+                if (parseError != "")
+                    msg += ": " + parseError;
+                terminal.addLine(msg,'error-line');
+            }
+        });
+    };
+
+    this.exec = function(args) {
+        // attempt to evaluate the expression and return the result back to the
+        // caller; we do not attempt to call args.next (effectively breaking from
+        // whatever code region we are in)
+        try {
+            return expr.evaluate(block);
+        }
+        catch (e) {
+            terminal.addLine('return-block: eval error: '+e,'error-line');
+            args.exited = true;
+        }
+    };
+
+    this.getRep = function() {
+        return {expr: expr.expr()};
+    };
+
+    visual.setLabel(expr.expr());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -963,6 +1046,13 @@ NotExpressionNode = function(left,right) {
     this.right = right;
     this.kind = 'not-expr';
 };
+FunctionCallListNode = function(left,right) {
+    // this construct is special as it is not evaluable; it just holds the
+    // function call argument list (defined recursively)
+    this.left = left; // list item
+    this.right = right; // recursive structure or NULL
+    this.kind = 'function-call-list';
+};
 FunctionCallExpressionNode = function(left,right) {
     this.left = left;
     this.right = right;
@@ -1051,8 +1141,33 @@ FunctionCallExpressionNode.prototype.eval = function(block) {
         throw "'" + this.left + "': function is undefined";
     }
 
-    // TODO: call function with arguments
+    // call function with arguments
+    var unpackArgs = function(callList) {
+        if (callList == null)
+            return [];
+        return [callList.left.eval(block)].concat(unpackArgs(callList.right));
+    };
 
+    var args = {
+        next: Function.prototype, // does nothing
+        exited: false, // is the simulator exiting abnormally?
+        breaking: false // is the simulator breaking from a loop?
+    };
+    var ps = unpackArgs(this.right);
+    args.params = {};
+    for (var i = 0;i < ps.length;++i)
+        args.params["arg"+String(i+1)] = ps[i];
+
+    var ret = fblk.exec(args);
+    if (typeof ret == 'undefined') {
+        // we want functions to return values (ideally); but the user should be
+        // able to use them as subroutines if desired; at any rate, we print a
+        // warning so that it's clear nothing was returned
+        terminal.addLine("execution: warning: function return value undefined; "
+            + "using zero (0)","warning-line");
+        ret = 0;
+    }
+    return ret;
 };
 IdentifierNode.prototype.eval = function(block) {
     // special identifiers
@@ -1278,6 +1393,23 @@ function ExpressionParser(expr,allowBoolean,allowAssignment) {
         return false;
     }
 
+    function peekToken(kind,text) {
+        if (iter >= toks.length)
+            return false;
+
+        if (toks[iter].kind == kind) {
+            if (typeof text != 'undefined') {
+                if (toks[iter].text == text) {
+                    return toks[iter];
+                }
+                return false;
+            }
+            return toks[iter];
+        }
+
+        return false;
+    }
+
     function expression(node) {
         return assignmentExpression(node);
     }
@@ -1447,10 +1579,28 @@ function ExpressionParser(expr,allowBoolean,allowAssignment) {
         result = functionCallExpressionOpt(result);
         return result;
     }
+    function functionCallList(node) {
+        var newnode = new FunctionCallListNode(
+            expression(),
+            functionCallListItem()
+        );
+        return newnode;
+    }
+    function functionCallListItem(node) {
+        if (matchToken('symbol',',')) {
+            return functionCallList();
+        }
+
+        return null;
+    }
     function functionCallExpressionOpt(node) {
         if (matchToken('symbol','(')) {
-            // TODO: parse function call list
-            var newnode = new FunctionCallExpressionNode(node, null/*call-expr*/);
+            var callList = null;
+            if (!peekToken('symbol',')')) {
+                // we have to use a token of look ahead for this construct...
+                callList = functionCallList();
+            }
+            var newnode = new FunctionCallExpressionNode(node,callList);
             if (!matchToken('symbol',')')) {
                 throw "expected ')' to close function-call";
             }
@@ -1501,6 +1651,8 @@ function ExpressionParser(expr,allowBoolean,allowAssignment) {
     // function only checks for existence
     function containsNode(exprKind) {
         function recall(node) {
+            if (node == null)
+                return false;
             if (node.kind == exprKind)
                 return true;
             if (typeof node.left == 'undefined' || typeof node.right == 'undefined')

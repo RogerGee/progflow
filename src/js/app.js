@@ -120,9 +120,10 @@ function initPage() {
     mainPanel.addButtonA("if",buttonMakeIfNode);
     mainPanel.addButtonA("while",buttonMakeWhileNode);
     mainPanel.addButtonA("break",buttonMakeBreakNode);
-    mainPanel.addButtonA("ret");
+    mainPanel.addButtonA("ret",buttonMakeReturnNode);
     mainPanel.addButtonA("proc",buttonMakeProcNode);
     mainPanel.addBreak();
+    mainPanel.addButtonB("rename proc",buttonRenameProc);
     mainPanel.addButtonB("delete block",buttonDeleteAction);
     mainPanel.addBreak();
     mainPanel.addButtonB("C++");
@@ -163,7 +164,17 @@ function resizePage() {
     context.resizeCanvas();
 }
 
-////////////////////////////////////////////////////////////////////////////////
+// alert_ex() - better version of alert using our page system
+function alert_ex(message) {
+    var hd = document.createElement("h2");
+    hd.innerHTML = "Message from web page...";
+
+    var txt = document.createTextNode(message);
+    var page = new CustomPage({content:[hd,txt],dims:{width:30,height:25}});
+    page.show();
+}
+
+/////////////////////////////////////////////////,///////////////////////////////
 // Button handlers for main UI
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -175,7 +186,7 @@ function buttonNew() {
     // grab the name of the new project from the box
     var name = mainPanel.getElementValue("flowchart-name");
     if (name == "") {
-        alert("Please specify a project name in the input field at left.");
+        alert_ex("Please specify a project name in the input field at left.");
         return;
     }
 
@@ -314,7 +325,7 @@ function buttonOpenProject() {
             }
         }
         else
-            alert("Please select a file.");
+            alert_ex("Please select a file.");
     }
 
     var dialog = new CustomPage({
@@ -353,10 +364,22 @@ function buttonMakeOperationNode() {
 }
 
 function buttonMakeInNode() {
+    if (context.atTopLevel())
+        return;
+    if (context.getCurBlockName() != 'main') {
+        alert_ex('Input blocks may only be added to the main procedure.');
+        return;
+    }
     context.addNode('flowin');
 }
 
 function buttonMakeOutNode() {
+    if (context.atTopLevel())
+        return;
+    if (context.getCurBlockName() != 'main') {
+        alert_ex('Output blocks may only be added to the main procedure.');
+        return;
+    }
     context.addNode('flowout');
 }
 
@@ -372,9 +395,60 @@ function buttonMakeBreakNode() {
     context.addNode('flowbreak');
 }
 
-function buttonMakeProcNode() {
-    // add a procedure node whose name is unique
+function buttonMakeReturnNode() {
+    context.addNode('flowret');
+}
 
+function buttonMakeProcNode() {
+    if (!context.atTopLevel()) {
+        alert_ex("You may only add procedures at the top-level.");
+        return;
+    }
+
+    // add a procedure node whose name is unique
+    context.addBlock('proc');
+}
+
+function buttonRenameProc() {
+    var dialog;
+    if (!context.atProcedureLevel()) {
+        alert_ex("Procedure names must be modified at the procedure level.");
+        return;
+    }
+
+    var procname = context.getCurBlockName();
+    if (procname == "main") {
+        alert_ex("Cannot rename 'main' procedure.");
+        return;
+    }
+
+    var hd = document.createElement("h2");
+    var label = document.createTextNode("Specify a unique identifier:");
+    var entry = document.createElement('input');
+    entry.type = 'text';
+    entry.value = procname;
+    hd.innerHTML = "Update Procedure Name";
+
+    var updateName = function() {
+        if (entry.value.match(IDENT_REGEX)[0] != entry.value) {
+            alert_ex("Invalid procedure name");
+            return;
+        }
+
+        if (!context.setCurBlockName(entry.value))
+            alert_ex("Procedure name is already in use. Please specify a unique name.")
+        else
+            dialog.close();
+    };
+
+    // create a dialog to gather the new name
+    dialog = new CustomPage(
+        {
+            actions:[{label:"Update",callback:updateName}],
+            content:[hd,label,entry],
+            dims:{width:30,height:20}
+        });
+    dialog.show();
 }
 
 function buttonDeleteAction() {
@@ -382,7 +456,7 @@ function buttonDeleteAction() {
 }
 
 function buttonExec() {
-    var logic = context.topLevelLogic();
+    var logic = context.entryPointLogic();
 
     logic.exec();
 }
