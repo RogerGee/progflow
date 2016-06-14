@@ -190,10 +190,36 @@ function buttonNew() {
         return;
     }
 
-    // TODO: check save state
+    var warnDialog;
+    function createNew() {
+        context = new DrawingContext(canvas,canvasView,{label: name});
+        context.drawScreen();
 
-    context = new DrawingContext(canvas,canvasView,{label: name});
-    context.drawScreen();
+        if (typeof warnDialog != 'undefined')
+            warnDialog.close();
+    }
+
+    if (context.isModified()) {
+        var head = document.createElement('h1');
+        var msg = document.createElement('p');
+
+        head.innerHTML = "WARNING: Project is not saved!";
+        msg.className = "new-proj-warning";
+        msg.innerHTML = "You have modified the current project. "
+            + "Creating a new project will overwrite your changes. Do you still "
+            + "want to continue and lose your work?";
+
+        warnDialog = new CustomPage({
+            content:[head,msg],
+            actions:[
+                {label:"Create New Project Anyway",callback:createNew}
+            ]
+        });
+        warnDialog.show();
+    }
+    else {
+        createNew();
+    }
 }
 
 function buttonSaveProject() {
@@ -296,21 +322,26 @@ function buttonOpenProject() {
             try {
                 var reader = new FileReader();
                 reader.onload = function(e) {
+                    var progrep;
                     var newcontext;
                     var canvas = document.getElementById("canvas-main");
                     var canvasView = document.getElementById("div-canvas-view");
 
                     try {
+                        progrep = JSON.parse(e.target.result);
                         newcontext = new DrawingContext(
                             canvas,
                             canvasView,
-                            JSON.parse(e.target.result) );
+                            progrep );
                     } catch (err) {
                         selectedFile = null;
                         lbl.className = "open-file-error-p";
-                        lbl.innerHTML = "Failed to load input file: " + e;
+                        lbl.innerHTML = "Failed to load input file: " + err;
                         return;
                     }
+
+                    var nameBox = document.getElementById("flowchart-name");
+                    nameBox.value = progrep.label;
 
                     context = newcontext;
                     context.drawScreen();
@@ -342,10 +373,36 @@ function buttonCloseProject() {
     var canvas = document.getElementById("canvas-main");
     var canvasView = document.getElementById("div-canvas-view");
 
-    // TODO: check save state
+    var warnDialog;
+    function closeProj() {
+        context = new DrawingContext(canvas,canvasView,{label: "program"});
+        nodePanel.innerHTML = '';
 
-    context = new DrawingContext(canvas,canvasView,{label: "program"});
-    nodePanel.innerHTML = '';
+        if (typeof warnDialog != 'undefined')
+            warnDialog.close();
+    }
+
+    if (context.isModified()) {
+        var head = document.createElement('h1');
+        var msg = document.createElement('p');
+
+        head.innerHTML = "WARNING: Project is not saved!";
+        msg.className = "new-proj-warning";
+        msg.innerHTML = "You have unsaved changes in the current project. "
+            + "Closing the project will destroy your changes. Do you still "
+            + "want to continue and lose your work?";
+
+        warnDialog = new CustomPage({
+            content:[head,msg],
+            actions:[
+                {label:"Close Anyway",callback:closeProj}
+            ]
+        });
+        warnDialog.show();
+    }
+    else {
+        closeProj();
+    }
 }
 
 function buttonAbout() {

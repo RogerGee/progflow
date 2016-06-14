@@ -143,3 +143,10 @@ html, body {
     font-size: 1.5em;
     font-weight: bolder;
 }
+
+.new-proj-warning {
+    color: green;
+    font-size: 2.5em;
+    text-align: center;
+    font-weight: bolder;
+}

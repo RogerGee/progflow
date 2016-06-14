@@ -732,7 +732,7 @@ function FormatString(fs) {
     }
 }
 
-FormatString.prototype.getIdentifiers = function() {
+FormatString.prototype.getIdentifiers = function(idConv) {
     // generate a list of the identifiers obtained by parsing any expressions
     // that would be evaluated in the format string; then combine them with a
     // list of normal identifiers specified by simple token expressions
@@ -740,9 +740,10 @@ FormatString.prototype.getIdentifiers = function() {
         function(x){return new ExpressionParser(x[1],false,false)}).map(
             function(e){return e.findNodes("identifier")}).reduce(
                 function(a,b){return a.concat(b);},[]).map(
-                    function(x){return x.id;}).concat(
-                        this.ms.map(
-                            function(x){return x[0].substring(1);}));
+                    typeof idConv == 'undefined' ? function(x){return x.id;}
+                        : idConv).concat(
+                            this.ms.map(
+                                function(x){return x[0].substring(1);}));
 }
 
 FormatString.prototype.getParts = function() {
@@ -980,10 +981,11 @@ FormatString.prototype.input = function(block,next) {
 ////////////////////////////////////////////////////////////////////////////////
 
 // regular expressions for lexing
-const IDENT_REGEX = /[a-zA-Z_][a-zA-Z_0-9]*/;
+const IDENT_REGEX = /[a-zA-Z_](?:[a-zA-Z_0-9]*[a-zA-Z0-9]+)?/;
 const NUMER_REGEX = /[0-9]*(?:\.?[0-9]+)/;
 const SYMBOL_REGEX = /\(|\)|\[|\]|\+|-|\*|\/|\^|,|==|=|<=|>=|<>|<|>/; // list longest strings first
-const EXPR_REGEX = /([a-zA-Z_][a-zA-Z_0-9]*)|([0-9]*(?:\.?[0-9]+))|(\(|\)|\[|\]|\+|-|\*|\/\/|\/|\^|,|==|=|<=|>=|<>|<|>)/g;
+const EXPR_REGEX = /([a-zA-Z_](?:[a-zA-Z_0-9]*[a-zA-Z0-9]+)?)|([0-9]*(?:\.?[0-9]+))|(\(|\)|\[|\]|\+|-|\*|\/\/|\/|\^|,|==|=|<=|>=|<>|<|>)/g;
+const INTEGER_REGEX = /^[0-9]+$/;
 
 // expression types for evaluation
 AssignmentExpressionNode = function(left,right) {
@@ -1396,12 +1398,18 @@ FunctionCallExpressionNode.prototype.toCpp = function() {
     },"") + ')';
 }
 IdentifierNode.prototype.toCpp = function() {
-    if (typeof this.index != 'undefined')
-        return this.id + '[' + this.index + ']';
+    if (typeof this.index != 'undefined') {
+        // arrays are implemented using static stack-allocated arrays; so we
+        // have to make sure we never exceed the array bounds
+        return this.id + '_[INDEX(' + this.index + ')]';
+    }
     return this.id;
 };
 NumberNode.prototype.toCpp = function() {
-    return String(this.value);
+    var s = String(this.value);
+    if (s.match(INTEGER_REGEX))
+        return s + ".0";
+    return s;
 };
 
 // typeOf prototypes for expression types

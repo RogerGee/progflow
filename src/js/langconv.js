@@ -1,5 +1,13 @@
 // langconv.js - progflow
 
+////////////////////////////////////////////////////////////////////////////////
+// BEGIN C++ CODE GENERATION FUNCTIONALITY
+////////////////////////////////////////////////////////////////////////////////
+
+const CPP_ARRAY_SIZE = 256;
+const ARRAY_ACCESS_MACRO = "#define INDEX(x) (int(x) & 0xff)";
+const ARG_REGEX = /^arg([1-9][0-9]*)$/;
+
 // convCpp: produce C++ source code from the save representation; this will
 // perform some static semantic analysis since the Simulator only detects errors
 // at runtime
@@ -24,14 +32,22 @@ function convCpp(saveRep) {
     // after main code generation
     if ('includeCmath' in params)
         prepend1 += "#include <cmath>\n";
+    if ('usesArrays' in params)
+        prepend1 += ARRAY_ACCESS_MACRO + "\n";
 
     var funcdecls = params.funcdecls.reduce(function(prev,cur){
-        return prev + "\n" + cur;
-    });
-    var funcdefs = params.bodies.reduce(function(prev,cur){
+        if (prev == '')
+            return cur;
         return prev + "\n" + cur;
     },'');
-    return prepend1 + prepend2 + funcdecls + "\n" + funcdefs + "\n";
+    var funcdefs = params.bodies.reduce(function(prev,cur){
+        if (prev == '')
+            return cur;
+        return prev + "\n" + cur;
+    },'');
+    if (funcdecls.length > 0)
+        funcdecls += "\n\n";
+    return prepend1 + prepend2 + funcdecls + funcdefs;
 }
 
 // funcCpp: implementation function for single function generation
@@ -66,7 +82,8 @@ function funcCpp(saveRep,params) {
             : searchForConstruct(saveRep,"flowret") ? "double " : "void ")
                 + saveRep.label + "(" + paramList + ")";
 
-    params.funcdecls.push(decl+";");
+    if (saveRep.label != "main") // only add if not main procedure
+        params.funcdecls.push(decl+";");
     params.bodies.push(decl+"\n"+code);
 }
 
@@ -104,45 +121,158 @@ function blockCpp(saveRep,scopes,params,addStmt,doBraces) {
     var argscope = {};
     scopes.push(argscope);
 
+    // this function takes an IdentifierNode object and converts it to a string
+    // identifier; it also marks array-type identifiers for later processing; we
+    // store all array type references but will only resolve those that are
+    // declared in this scope
+    var arrays = {};
+    function cppIdString(x) {
+        // if a variable index was used, we mark an array reference for the
+        // variable name
+        if (typeof x.index != 'undefined') {
+            arrays[x.id] = null;
+        }
+        return x.id
+    }
+
     // search the current block level for variable references; we use this to
     // figure out which names were introduced in this scope
     for (var o of saveRep.children) {
         var ids = [];
 
+        // this function recursively searches for only argument variables OR
+        // array-type usage of variables that have already been defined; this is
+        // so we can scope these properly
+        function searchSpecialIds(node) {
+            var fs = null;
+            var expr = null;
+            if (node.kind == 'flowoperation') {
+                if (typeof node.cache == "undefined") {
+                    // build an expression parser like a FlowOperationLogic does to find
+                    // identifiers that are modified
+                    expr = new ExpressionParser(node.logic.expr,false,true);
+                    node.cache = expr;
+                }
+                else
+                    expr = node.cache;
+            }
+            else if (node.kind == 'flowret') {
+                if (typeof node.cache == 'undefined') {
+                    // build the return expression
+                    expr = new ExpressionParser(node.logic.expr,false,false);
+                    node.cache = expr;
+                }
+                else
+                    expr = node.cache;
+            }
+            else if (node.kind == 'flowin' || node.kind == 'flowout') {
+                if (typeof node.cache == 'undefined') {
+                    // use the FormatString class to parse any expressions used
+                    // in the format string that could potentially declare
+                    // variables
+                    fs = new FormatString(node.logic.formatString);
+                    node.cache = fs;
+                }
+                else
+                    fs = node.cache;
+            }
+            else if (node.kind == 'flowif') {
+                if (typeof node.cache == 'undefined') {
+                    // build an expression just like an IfLogic node
+                    expr = new ExpressionParser(node.logic.cond,true,false);
+                    node.cache = expr;
+                }
+                else
+                    expr = node.cache;
+                searchSpecialIds(node.truePart);
+                searchSpecialIds(node.falsePart);
+            }
+            else if (node.kind == 'flowwhile') {
+                if (typeof node.cache == 'undefined') {
+                    // build an expression just like a WhileLogic node
+                    expr = new ExpressionParser(node.logic.cond,true,false);
+                    node.cache = expr;
+                }
+                else
+                    expr = node.cache;
+                searchSpecialIds(node.body);
+            }
+            else if (node.kind == 'flowblock') {
+                for (var child of node.children)
+                    searchSpecialIds(child);
+            }
+
+            // generate ids; only keep those that are argument references; we
+            // also will store references to array-type variables when we call
+            // the 'cppIdString' function
+            if (fs) {
+                ids.concat(fs.getIdentifiers(cppIdString).filter(
+                    function(x){x.match(ARG_REGEX);}));
+            }
+            if (expr) {
+                ids.concat(expr.findNodes('identifier').map(cppIdString).filter(
+                    function(x){x.match(ARG_REGEX);}));
+            }
+        }
+
+        // handle top-level constructs (these ids always go into our scope if
+        // they haven't been found already)
         if (o.kind == 'flowoperation') {
-            // build an expression parser like a FlowOperationLogic does to find
-            // identifiers that are modified
-            var expr = new ExpressionParser(o.logic.expr,false,true);
-            ids = expr.findNodes('identifier').map(
-                function(x){return x.id;});
-            o.cache = expr;
+            var expr;
+            if (typeof o.cache == "undefined") {
+                // build an expression parser like a FlowOperationLogic does to find
+                // identifiers that are modified
+                expr = new ExpressionParser(o.logic.expr,false,true);
+                o.cache = expr;
+            }
+            else
+                expr = o.cache;
+            ids = expr.findNodes('identifier').map(cppIdString);
         }
         else if (o.kind == 'flowret') {
             // like above but for FlowReturnLogic
-            var expr = new ExpressionParser(o.logic.expr,false,false);
-            ids = expr.findNodes('identifier').map(
-                function(x){return x.id});
-            o.cache = expr;
+            var expr;
+            if (typeof o.cache == 'undefined') {
+                expr = new ExpressionParser(o.logic.expr,false,false);
+                o.cache = expr;
+            }
+            else
+                expr = o.cache;
+            ids = expr.findNodes('identifier').map(cppIdString);
         }
         else if (o.kind == 'flowin' || o.kind == 'flowout') {
-            // use the FormatString class to parse any expressions used in the
-            // format string that could potentially declare variables
-            var fs = new FormatString(o.logic.formatString);
-            ids = fs.getIdentifiers();
-            o.cache = fs;
+            var fs;
+            if (typeof o.cache == 'undefined') {
+                // use the FormatString class to parse any expressions used in the
+                // format string that could potentially declare variables
+                fs = new FormatString(o.logic.formatString);
+                o.cache = fs;
+            }
+            else
+                fs = o.cache;
+            ids = fs.getIdentifiers(cppIdString);
+        }
+        else {
+            searchSpecialIds(o);
         }
 
         // go through each of the idenfiers; if the name hasn't been referenced,
         // add to the current scope
         for (var name of ids) {
             if (!searchScopes(scopes,name)) {
-                // count arguments and don't include them in the parameter
-                // count
-                if (name.match(/^arg[0-9]+$/)) {
-                    saveRep.argc += 1;
-                    argscope[name] = null; // include in argument scope
+                var m;
+                // count arguments and don't include them in the new scope
+                if (m = name.match(ARG_REGEX)) {
+                    if (saveRep.argc < m[1])
+                        saveRep.argc = Number(m[1]);
+
+                    // include the name in the temporary argument scope; this
+                    // allows us to only consider unique arguments
+                    argscope[name] = null;
                     continue;
                 }
+
+                // add the identifier to the scope name table
                 s[name] = null;
             }
         }
@@ -157,8 +287,27 @@ function blockCpp(saveRep,scopes,params,addStmt,doBraces) {
 
     // first create variable declarations for all the local variables introduced
     // in this scope
-    for (var name in s)
-        addStmt("double " + name + ";");
+    var created = false;
+    var vardecls = "";
+    for (var name in s) {
+        vardecls += (created ? "," : "double");
+        if (vardecls.length >= 80) {
+            addStmt(vardecls);
+            vardecls = "       ";
+        }
+        vardecls += " " + name;
+        if (name in arrays) {
+            // handle special array-type variables; arrays in ProgFlow work by
+            // key-value pairs where the key is always an integer; to implement
+            // this in C++, we have to have a statically sized array; an array
+            // name has a trailing '_'
+            vardecls += ", " + name + "_[" + CPP_ARRAY_SIZE + "]";
+            params.usesArrays = true;
+        }
+        created = true;
+    }
+    if (vardecls.length > 0)
+        addStmt(vardecls + ";");
 
     // now create the constructs
     for (var o of saveRep.children) {
@@ -199,17 +348,22 @@ function outCpp(saveRep,scopes,params,addStmt) {
         addStmt("cout << \"\\n\";");
 
     // generate the output statement
+    var text = "";
     for (var i = 0;i < parts.length;++i) {
-        var stmt;
-        var suff = "";
         var nl1 = "", nl2 = "";
         var p = parts[i];
 
+        // check for long lines and break them if needed
+        if (text.length >= 80) {
+            addStmt(text);
+            text = "    ";
+        }
+
         // chain output expressions together if this is not the first expression
         if (i > 0)
-            stmt = "     << ";
+            text += " << ";
         else
-            stmt = "cout << ";
+            text += "cout << ";
 
         // if this is the last expression, add appropriate terminators
         if (i+1 == parts.length) {
@@ -217,26 +371,25 @@ function outCpp(saveRep,scopes,params,addStmt) {
                 nl1 = "\\n";
                 nl2 = " << \"\\n\"";
             }
-            suff = ";"
         }
 
         // add an output expression
         if (p.kind == 'lit') {
-            addStmt(stmt + "\"" + p.object + nl1 + "\"" + suff);
+            text += "\"" + p.object + nl1 + "\"";
         }
         else /* if (p.kind == 'obj') */ {
             if (typeof p.object == 'object') // it's an expression
-                addStmt(stmt + p.object.convCpp(params) + nl2 + suff);
+                text += p.object.convCpp(params) + nl2;
             else // it's a string (simple variable)
-                addStmt(stmt + p.object + nl2 + suff);
+                text += p.object + nl2;
         }
-        prev = true;
     }
+    if (text.length > 0)
+        addStmt(text + ";");
 }
 
 function ifCpp(saveRep,scopes,params,addStmt) {
-    // build an expression just like the IfLogic node does
-    var expr = new ExpressionParser(saveRep.logic.cond,true,false);
+    var expr = saveRep.cache;
 
     // generate true part
     addStmt("if (" + expr.convCpp(params) + ") {");
@@ -252,7 +405,7 @@ function ifCpp(saveRep,scopes,params,addStmt) {
 }
 
 function whileCpp(saveRep,scopes,params,addStmt) {
-    var expr = new ExpressionParser(saveRep.logic.cond,true,false);
+    var expr = saveRep.cache;
 
     // generate body
     addStmt("while (" + expr.convCpp(params) + ") {");
@@ -268,6 +421,10 @@ function breakCpp(saveRep,scopes,params,addStmt) {
 function retCpp(saveRep,scopes,params,addStmt) {
     addStmt("return " + saveRep.cache.convCpp(params) + ";");
 }
+
+////////////////////////////////////////////////////////////////////////////////
+// END C++ CODE GENERATION FUNCTIONALITY
+////////////////////////////////////////////////////////////////////////////////
 
 function convPython(saveRep) {
 
