@@ -335,6 +335,16 @@ function DrawingContext(canvas,canvasView,program) {
             && Object.is(blockStack[blockStack.length-1],topBlock);
     }
 
+    // underLevel() - determine if the currentBlock is under a block with the
+    // specified label
+    function underLevel(name) {
+        for (var blo of blockStack) {
+            if (blo.getLabel() == name)
+                return true;
+        }
+        return currentBlock.getLabel() == name;
+    }
+
     // setCurBlockName() - sets the current block label IF it is not already in
     // use amoung any of the procedures defined at the top level; returns false
     // if the name could not be set
@@ -454,6 +464,7 @@ function DrawingContext(canvas,canvasView,program) {
     this.setCurBlockName = setCurBlockName;
     this.atTopLevel = atTopLevel;
     this.atProcedureLevel = atProcedureLevel;
+    this.underLevel = underLevel;
 
     // create the top block; it is the first scope defined in the program and
     // as such is not provided an enclosing block

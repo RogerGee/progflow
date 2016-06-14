@@ -126,10 +126,10 @@ function initPage() {
     mainPanel.addButtonB("rename proc",buttonRenameProc);
     mainPanel.addButtonB("delete block",buttonDeleteAction);
     mainPanel.addBreak();
-    mainPanel.addButtonB("C++");
-    mainPanel.addButtonB("Python");
+    mainPanel.addButtonB("C++",buttonCppGen);
+    mainPanel.addButtonB("Python",buttonPythonGen);
     mainPanel.addButtonB("exec",buttonExec);
-    mainPanel.addButtonB("trace");
+    //mainPanel.addButtonB("trace");
     mainPanel.addButtonB("clear",buttonClearTerminal);
     mainPanel.addBreak();
 
@@ -366,7 +366,7 @@ function buttonMakeOperationNode() {
 function buttonMakeInNode() {
     if (context.atTopLevel())
         return;
-    if (context.getCurBlockName() != 'main') {
+    if (!context.underLevel('main')) {
         alert_ex('Input blocks may only be added to the main procedure.');
         return;
     }
@@ -376,7 +376,7 @@ function buttonMakeInNode() {
 function buttonMakeOutNode() {
     if (context.atTopLevel())
         return;
-    if (context.getCurBlockName() != 'main') {
+    if (!context.underLevel('main')) {
         alert_ex('Output blocks may only be added to the main procedure.');
         return;
     }
@@ -453,6 +453,31 @@ function buttonRenameProc() {
 
 function buttonDeleteAction() {
     context.deleteAction();
+}
+
+function buttonCppGen() {
+    var rep = context.getSaveRep();
+    var code = convCpp(rep);
+    var dataURL = "data:text;charset=utf-8," + encodeURIComponent(code);
+    var head = document.createElement('h1');
+    var link = document.createElement('a');
+    var codeBox = document.createElement('textarea');
+
+    head.innerHTML = "Transliterated C++ Source Code";
+    link.download = rep.label + ".cpp";
+    link.href = dataURL;
+    link.innerHTML = "Download C++ Source Code";
+    codeBox.innerHTML = code;
+    codeBox.className = "save-code-box";
+    codeBox.readOnly = true;
+    var dialog = new CustomPage({
+        content:[head,codeBox,document.createElement("br"),link]
+    });
+    dialog.show();
+}
+
+function buttonPythonGen() {
+
 }
 
 function buttonExec() {

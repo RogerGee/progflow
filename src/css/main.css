@@ -46,11 +46,12 @@ html, body {
 
 .control-panel-button-a {
     font-size: 12pt;
+    padding: 0px;
     font-family: monospace;
-
 }
 
 .control-panel-button-b {
+    padding: 0px;
     font-size: 12pt;
 }
 
@@ -88,6 +89,15 @@ html, body {
     background-color: white;
     border: none;
     font-family: monospace;
+}
+
+.save-code-box {
+    font-family: monospace;
+    border: none;
+    width: 100%;
+    height: 80%;
+    resize: none;
+    background-color: white;
 }
 
 .open-file-input {

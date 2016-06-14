@@ -707,11 +707,10 @@ const FORMAT_EXPR_GRAB_REGEX = /%{(.+?)}/g; // match shortest sequence between {
 
 function FormatString(fs) {
     this.fs = fs;
-}
+    this.ms = []; // type 1 expression (simple)
+    this.ns = []; // type 2 expression (complex)
 
-FormatString.prototype.output = function(block,newline) {
-    // process the format string
-    var ms = [], ns = [];
+    // parse the format expression
     var mstate = true, nstate = true;
     FORMAT_TOKEN_REGEX.lastIndex = 0;
     FORMAT_EXPR_GRAB_REGEX.lastIndex = 0;
@@ -719,27 +718,75 @@ FormatString.prototype.output = function(block,newline) {
         if (mstate) {
             var m = FORMAT_TOKEN_REGEX.exec(this.fs); // simple variable name
             if (m)
-                ms.push(m);
+                this.ms.push(m);
             else
                 mstate = false;
         }
         if (nstate) {
             var n = FORMAT_EXPR_GRAB_REGEX.exec(this.fs); // output expression
             if (n)
-                ns.push(n);
+                this.ns.push(n);
             else
                 nstate = false;
         }
     }
+}
 
+FormatString.prototype.getIdentifiers = function() {
+    // generate a list of the identifiers obtained by parsing any expressions
+    // that would be evaluated in the format string; then combine them with a
+    // list of normal identifiers specified by simple token expressions
+    return this.ns.map(
+        function(x){return new ExpressionParser(x[1],false,false)}).map(
+            function(e){return e.findNodes("identifier")}).reduce(
+                function(a,b){return a.concat(b);},[]).map(
+                    function(x){return x.id;}).concat(
+                        this.ms.map(
+                            function(x){return x[0].substring(1);}));
+}
+
+FormatString.prototype.getParts = function() {
+    // returns a list of objects with the following structure:
+    //  {kind:lit|obj,object:string|ExpressionParser}
+    // this is used for converting a format string to a language-specific statement
+
+    var s;
+    var i = 0, j = 0;
+    var list = [], last = 0;
+    while (i < this.ms.length || j < this.ns.length) {
+        // build part of the output string from a variable/expression evaluation
+        if (i < this.ms.length && (j >= this.ns.length || this.ns[j].index > this.ms[i].index)) {
+            var m = this.ms[i++];
+            s = this.fs.substring(last,m.index);
+            if (s.length > 0)
+                list.push({kind:"lit",object:s});
+            list.push({kind:"obj",object:m[0].substring(1)});
+            last = m.index + m[0].length;
+        }
+        else if (j < this.ns.length) {
+            var n = this.ns[j++];
+            s = this.fs.substring(last,n.index);
+            if (s.length > 0)
+                list.push({kind:"lit",object:s});
+            list.push({kind:"obj",object:new ExpressionParser(n[1],false,false)});
+            last = n.index + n[0].length;
+        }
+    }
+    s = this.fs.substring(last,this.fs.length);
+    if (s.length > 0)
+        list.push({kind:"lit",object:s});
+    return list;
+}
+
+FormatString.prototype.output = function(block,newline) {
     // evaluate the output string
     var i = 0, j = 0;
     var errors = [];
     var output = "", last = 0;
-    while (i < ms.length || j < ns.length) {
+    while (i < this.ms.length || j < this.ns.length) {
         // build part of the output string from a variable/expression evaluation
-        if (i < ms.length && (j >= ns.length || ns[j].index > ms[i].index)) {
-            var m = ms[i++];
+        if (i < this.ms.length && (j >= this.ns.length || this.ns[j].index > this.ms[i].index)) {
+            var m = this.ms[i++];
             output += this.fs.substring(last,m.index);
 
             // grab the variable name by stripping off the leading '%' sign; then
@@ -756,8 +803,8 @@ FormatString.prototype.output = function(block,newline) {
 
             last = m.index + m[0].length;
         }
-        else if (j < ns.length) {
-            var n = ns[j++];
+        else if (j < this.ns.length) {
+            var n = this.ns[j++];
             output += this.fs.substring(last,n.index);
 
             // parse the contents of the first captured group as an expression
@@ -794,41 +841,19 @@ FormatString.prototype.output = function(block,newline) {
 };
 
 FormatString.prototype.input = function(block,next) {
-    // process the format string
-    var ms = [], ns = [];
-    var mstate = true, nstate = true;
-    FORMAT_TOKEN_REGEX.lastIndex = 0;
-    FORMAT_EXPR_GRAB_REGEX.lastIndex = 0;
-    while (mstate || nstate) {
-        if (mstate) {
-            var m = FORMAT_TOKEN_REGEX.exec(this.fs); // simple variable name
-            if (m)
-                ms.push(m);
-            else
-                mstate = false;
-        }
-        if (nstate) {
-            var n = FORMAT_EXPR_GRAB_REGEX.exec(this.fs); // output expression
-            if (n)
-                ns.push(n);
-            else
-                nstate = false;
-        }
-    }
-
     // create descriptions of the necessary input operations (i.e. 'things')
     var final;
     var i = 0, j = 0;
     var things = [], last = 0, errors = [];
-    while (i < ms.length || j < ns.length) {
-        if (i < ms.length && (j >= ns.length || ns[j].index > ms[i].index)) {
-            var m = ms[i++];
+    while (i < this.ms.length || j < this.ns.length) {
+        if (i < this.ms.length && (j >= this.ns.length || this.ns[j].index > this.ms[i].index)) {
+            var m = this.ms[i++];
             things.push({s:this.fs.substring(last,m.index)}); // prompt text
             things.push({v:m[0].substring(1)}); // variable
             last = m.index + m[0].length;
         }
-        else if (j < ns.length) {
-            var n = ns[j++];
+        else if (j < this.ns.length) {
+            var n = this.ns[j++];
             var expr = new ExpressionParser(n[1],false,false);
             things.push({s:this.fs.substring(last,n.index)}); // prompt text
             if (expr.error()) {
@@ -965,86 +990,103 @@ AssignmentExpressionNode = function(left,right) {
     this.left = left;
     this.right = right;
     this.kind = 'assign-expr';
+    this.plevel = 9;
 };
 LogicORExpressionNode = function(left,right) {
     this.left = left;
     this.right = right;
     this.kind = 'or-expr';
+    this.plevel = 8;
 };
 LogicANDExpressionNode = function(left,right) {
     this.left = left;
     this.right = right;
     this.kind = 'and-expr';
+    this.plevel = 7;
 };
 EqualExpressionNode = function(left,right) {
     this.left = left;
     this.right = right;
     this.kind = 'eq-expr';
+    this.plevel = 6;
 };
 NotEqualExpressionNode = function(left,right) {
     this.left = left;
     this.right = right;
     this.kind = 'not-eq-expr';
+    this.plevel = 6;
 };
 LessThanExpressionNode = function(left,right) {
     this.left = left;
     this.right = right;
     this.kind = 'less-expr';
+    this.plevel = 6;
 };
 GreaterThanExpressionNode = function(left,right) {
     this.left = left;
     this.right = right;
     this.kind = 'greater-expr';
+    this.plevel = 6;
 };
 LessThanEqualExpressionNode = function(left,right) {
     this.left = left;
     this.right = right;
     this.kind = 'less-eq-expr';
+    this.plevel = 6;
 };
 GreaterThanEqualExpressionNode = function(left,right) {
     this.left = left;
     this.right = right;
     this.kind = 'greater-eq-expr';
+    this.plevel = 6;
 };
 AddExpressionNode = function(left,right) {
     this.left = left;
     this.right = right;
     this.kind = 'add-expr';
+    this.plevel = 5;
 };
 SubtractExpressionNode = function(left,right) {
     this.left = left;
     this.right = right;
     this.kind = 'subtract-expr';
+    this.plevel = 5;
 };
 MultiplyExpressionNode = function(left,right) {
     this.left = left;
     this.right = right;
     this.kind = 'multiply-expr';
+    this.plevel = 4;
 };
 DivideExpressionNode = function(left,right) {
     this.left = left;
     this.right = right;
     this.kind = 'divide-expr';
+    this.plevel = 4;
 };
 IDivideExpressionNode = function(left,right) {
     this.left = left;
     this.right = right;
     this.kind = 'idivide-expr';
+    this.plevel = 4;
 };
 ExponentExpressionNode = function(left,right) {
     this.left = left;
     this.right = right;
     this.kind = 'exponent-expr';
+    this.plevel = 3;
 };
 NegateExpressionNode = function(left,right) {
     this.left = left;
     this.right = right;
     this.kind = 'negate-expr';
+    this.plevel = 2;
 };
 NotExpressionNode = function(left,right) {
     this.left = left;
     this.right = right;
     this.kind = 'not-expr';
+    this.plevel = 2;
 };
 FunctionCallListNode = function(left,right) {
     // this construct is special as it is not evaluable; it just holds the
@@ -1057,15 +1099,18 @@ FunctionCallExpressionNode = function(left,right) {
     this.left = left;
     this.right = right;
     this.kind = 'function-call';
+    this.plevel = 2;
 };
 IdentifierNode = function(tok,index) {
     this.id = tok.text;
     this.kind = 'identifier';
     this.index = index;
+    this.plevel = 1;
 };
 NumberNode = function(tok) {
     this.value = Number(tok.text);
     this.kind = 'number';
+    this.plevel = 1;
 };
 
 // evaluation prototypes for expression types
@@ -1196,64 +1241,166 @@ NumberNode.prototype.eval = function(block) {
     return this.value; // that was easy
 };
 
+// evaluate the string form of the specified operand node relative to an
+// operator using the order of operations; 'conv' is a conversion function
+function ooo(operator,operand,conv) {
+    if (operator.plevel < operand.plevel)
+        return '(' + conv(operand) + ')';
+    return conv(operand);
+}
+
+function stringCpp(o) {
+    return o.toCpp();
+}
+
 // toString prototypes for expression types
 AssignmentExpressionNode.prototype.toString = function() {
-    return '(' + this.left + ') = (' + this.right + ')';
+    return ooo(this,this.left,String) + " = " + ooo(this,this.right,String);
 };
 LogicORExpressionNode.prototype.toString = function() {
-    return '(' + this.left + ') or (' + this.right + ')';
+    return ooo(this,this.left,String) + " or " + ooo(this,this.right,String);
 };
 LogicANDExpressionNode.prototype.toString = function() {
-    return '(' + this.left + ') and (' + this.right + ')';
+    return ooo(this,this.left,String) + " and " + ooo(this,this.right,String);
 };
 EqualExpressionNode.prototype.toString = function() {
-    return '(' + this.left + ') == (' + this.right + ')';
+    return ooo(this,this.left,String) + " == " + ooo(this,this.right,String);
 };
 NotEqualExpressionNode.prototype.toString = function() {
-    return '(' + this.left + ') <> (' + this.right + ')';
+    return ooo(this,this.left,String) + " <> " + ooo(this,this.right,String);
 };
 LessThanExpressionNode.prototype.toString = function() {
-    return '(' + this.left + ') < (' + this.right + ')';
+    return ooo(this,this.left,String) + " < " + ooo(this,this.right,String);
 };
 GreaterThanExpressionNode.prototype.toString = function() {
-    return '(' + this.left + ') > (' + this.right + ')';
+    return ooo(this,this.left,String) + " > " + ooo(this,this.right,String);
 };
 LessThanEqualExpressionNode.prototype.toString = function() {
-    return '(' + this.left + ') <= (' + this.right + ')';
+    return ooo(this,this.left,String) + " <= " + ooo(this,this.right,String);
 };
 GreaterThanEqualExpressionNode.prototype.toString = function() {
-    return '(' + this.left + ') >= (' + this.right + ')';
+    return ooo(this,this.left,String) + " >= " + ooo(this,this.right,String);
 };
 AddExpressionNode.prototype.toString = function() {
-    return '(' + this.left + ') + (' + this.right + ')';
+    return ooo(this,this.left,String) + " + " + ooo(this,this.right,String);
 };
 SubtractExpressionNode.prototype.toString = function() {
-    return '(' + this.left + ') - (' + this.right + ')';
+    return ooo(this,this.left,String) + " - " + ooo(this,this.right,String);
 };
 MultiplyExpressionNode.prototype.toString = function() {
-    return '(' + this.left + ') * (' + this.right + ')';
+    return ooo(this,this.left,String) + " * " + ooo(this,this.right,String);
 };
 DivideExpressionNode.prototype.toString = function() {
-    return '(' + this.left + ') / (' + this.right + ')';
+    return ooo(this,this.left,String) + " / " + ooo(this,this.right,String);
 };
 IDivideExpressionNode.prototype.toString = function() {
-    return '(' + this.left + ') // (' + this.right + ')';
+    return ooo(this,this.left,String) + " // " + ooo(this,this.right,String);
 };
 ExponentExpressionNode.prototype.toString = function() {
-    return '(' + this.left + ') ^ (' + this.right + ')';
+    return ooo(this,this.left,String) + " ^ " + ooo(this,this.right,String);
 };
 NegateExpressionNode.prototype.toString = function() {
-    return '-' + this.left;
+    return '-' + ooo(this,this.left,String);
 };
 NotExpressionNode.prototype.toString = function() {
-    return 'not ' + this.left;
+    return 'not ' + ooo(this,this.left,String);
 };
+FunctionCallExpressionNode.prototype.toString = function() {
+    function unpack(a) {
+        if (a == null)
+            return [];
+        return [String(a.left)].concat(unpack(a.right));
+    }
+
+    var params = unpack(this.right);
+
+    return this.left + '(' + params.reduce(function(a,b){
+        if (a == "")
+            return b;
+        return a + "," + b;
+    },"") + ')';
+}
 IdentifierNode.prototype.toString = function() {
     if (typeof this.index != 'undefined')
         return this.id + '[' + this.index + ']';
     return this.id;
 };
 NumberNode.prototype.toString = function() {
+    return String(this.value);
+};
+
+// C++ conversion functions for expression types
+AssignmentExpressionNode.prototype.toCpp = function() {
+    return ooo(this,this.left,stringCpp) + " = " + ooo(this,this.right,stringCpp);
+};
+LogicORExpressionNode.prototype.toCpp = function() {
+    return ooo(this,this.left,stringCpp) + " || " + ooo(this,this.right,stringCpp);
+};
+LogicANDExpressionNode.prototype.toCpp = function() {
+    return ooo(this,this.left,stringCpp) + " && " + ooo(this,this.right,stringCpp);
+};
+EqualExpressionNode.prototype.toCpp = function() {
+    return ooo(this,this.left,stringCpp) + " == " + ooo(this,this.right,stringCpp);
+};
+NotEqualExpressionNode.prototype.toCpp = function() {
+    return ooo(this,this.left,stringCpp) + " != " + ooo(this,this.right,stringCpp);
+};
+LessThanExpressionNode.prototype.toCpp = function() {
+    return ooo(this,this.left,stringCpp) + " < " + ooo(this,this.right,stringCpp);
+};
+GreaterThanExpressionNode.prototype.toCpp = function() {
+    return ooo(this,this.left,stringCpp) + " > " + ooo(this,this.right,stringCpp);
+};
+LessThanEqualExpressionNode.prototype.toCpp = function() {
+    return ooo(this,this.left,stringCpp) + " <= " + ooo(this,this.right,stringCpp);
+};
+GreaterThanEqualExpressionNode.prototype.toCpp = function() {
+    return ooo(this,this.left,stringCpp) + " >= " + ooo(this,this.right,stringCpp);
+};
+AddExpressionNode.prototype.toCpp = function() {
+    return ooo(this,this.left,stringCpp) + " + " + ooo(this,this.right,stringCpp);
+};
+SubtractExpressionNode.prototype.toCpp = function() {
+    return ooo(this,this.left,stringCpp) + " - " + ooo(this,this.right,stringCpp);
+};
+MultiplyExpressionNode.prototype.toCpp = function() {
+    return ooo(this,this.left,stringCpp) + " * " + ooo(this,this.right,stringCpp);
+};
+DivideExpressionNode.prototype.toCpp = function() {
+    return ooo(this,this.left,stringCpp) + " / " + ooo(this,this.right,stringCpp);
+};
+IDivideExpressionNode.prototype.toCpp = function() {
+    return ooo(this,this.left,stringCpp) + " / " + ooo(this,this.right,stringCpp);
+};
+ExponentExpressionNode.prototype.toCpp = function() {
+    return 'pow(' + this.left + ', ' + this.right + ')';
+};
+NegateExpressionNode.prototype.toCpp = function() {
+    return '-' + ooo(this,this.left,stringCpp);
+};
+NotExpressionNode.prototype.toCpp = function() {
+    return '!' + ooo(this,this.left,stringCpp);
+};
+FunctionCallExpressionNode.prototype.toCpp = function() {
+    function unpack(a) {
+        if (a == null)
+            return [];
+        return [a.left.toCpp()].concat(unpack(a.right));
+    }
+
+    var params = unpack(this.right);
+    return this.left.toCpp() + '(' + params.reduce(function(a,b){
+        if (a == "")
+            return b;
+        return a + "," + b;
+    },"") + ')';
+}
+IdentifierNode.prototype.toCpp = function() {
+    if (typeof this.index != 'undefined')
+        return this.id + '[' + this.index + ']';
+    return this.id;
+};
+NumberNode.prototype.toCpp = function() {
     return String(this.value);
 };
 
@@ -1647,8 +1794,8 @@ function ExpressionParser(expr,allowBoolean,allowAssignment) {
         return parseTree.root.eval(block);
     }
 
-    // findNode() - finds a node in the parse tree with the specified kind; this
-    // function only checks for existence
+    // containsNode() - determines if a specified node-kind exists in the parse
+    // tree; this function only checks for existence
     function containsNode(exprKind) {
         function recall(node) {
             if (node == null)
@@ -1661,6 +1808,41 @@ function ExpressionParser(expr,allowBoolean,allowAssignment) {
         }
 
         return recall(parseTree.root);
+    }
+
+    // findNodes() - returns a list of all nodes of the specified kind
+    function findNodes(ofKind) {
+        var list = [];
+
+        function search(node) {
+            if (node == null)
+                return;
+            if (node.kind == ofKind) {
+                list.push(node);
+                return;
+            }
+            if (typeof node.left == 'undefined' || typeof node.right == 'undefined')
+                return;
+
+            search(node.left);
+            search(node.right);
+        }
+
+        search(parseTree.root);
+        return list;
+    }
+
+    // convert
+    function convCpp(params) {
+        // see if we need to import the math library
+        if (containsNode('exponent-expr')) {
+            params.includeCmath = true;
+        }
+
+        if (!parseTree.empty) {
+            return parseTree.root.toCpp();
+        }
+        return '';
     }
 
     ////////////////////////////////////////////////////////////////////////////
@@ -1681,4 +1863,6 @@ function ExpressionParser(expr,allowBoolean,allowAssignment) {
     this.errorMsg = function(){return errorMsg;};
     this.expr = function(){return expr;};
     this.containsNode = containsNode;
+    this.findNodes = findNodes;
+    this.convCpp = convCpp;
 }

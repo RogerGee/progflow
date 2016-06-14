@@ -87,6 +87,12 @@
                     "kind": "flowwhile"
                 },
                 {
+                    "logic": {
+                        "expr": "p = p/2"
+                    },
+                    "kind": "flowoperation"
+                },
+                {
                     "truePart": {
                         "label": "true",
                         "logic": {},
