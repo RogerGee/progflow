@@ -8,6 +8,10 @@
     overflow: auto;
 }
 
+.terminal, span {
+    white-space: pre;
+}
+
 .terminal-cursor {
     background-color: #FFF;
     color: #000;

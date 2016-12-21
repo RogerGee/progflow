@@ -148,8 +148,8 @@ function blockCpp(saveRep,scopes,params,addStmt,doBraces) {
             var expr = null;
             if (node.kind == 'flowoperation') {
                 if (typeof node.cache == "undefined") {
-                    // build an expression parser like a FlowOperationLogic does to find
-                    // identifiers that are modified
+                    // build an expression parser like a FlowOperationLogic does
+                    // to find identifiers that are modified
                     expr = new ExpressionParser(node.logic.expr,false,true);
                     node.cache = expr;
                 }
@@ -220,8 +220,8 @@ function blockCpp(saveRep,scopes,params,addStmt,doBraces) {
         if (o.kind == 'flowoperation') {
             var expr;
             if (typeof o.cache == "undefined") {
-                // build an expression parser like a FlowOperationLogic does to find
-                // identifiers that are modified
+                // build an expression parser like a FlowOperationLogic does to
+                // find identifiers that are modified
                 expr = new ExpressionParser(o.logic.expr,false,true);
                 o.cache = expr;
             }
@@ -426,9 +426,67 @@ function retCpp(saveRep,scopes,params,addStmt) {
 // END C++ CODE GENERATION FUNCTIONALITY
 ////////////////////////////////////////////////////////////////////////////////
 
+////////////////////////////////////////////////////////////////////////////////
+// BEGIN Python CODE GENERATION FUNCTIONALITY
+////////////////////////////////////////////////////////////////////////////////
+
 function convPython(saveRep) {
+    var params = { defs:[] };
+    var header = "#!/usr/bin/env python3\n#" + saveRep.label + ".py - python3\n";
+
+    // generate all procedures definitions
+    for (var proc of saveRep.children)
+        defPython(proc,params);
+
+    // generate header if needed
+    if ('includeCmath' in params)
+        header += "import math\n";
+
+    // combine everything into a single string
+    var defs = params.defs.reduce(function(prev,cur){
+        if (prev == '')
+            return cur;
+        return prev + "\n" + cur;
+    },'');
+    if (header.length > 0)
+        header += "\n";
+    return header + defs + "\nmain()\n";
+}
+
+function defPython(saveRep,params) {
+    // generate the main code body of the procedure; this lets us determine
+    // ahead of time the number of arguments the procedure uses
+    var code = "";
+    var indent = { level: 1 };
+    var addStmt = function(text) {
+        code += (new Array(indent.level * 4 + 1)).join(' ') + text + "\n";
+    };
+    blockPython(saveRep,indent,params,addStmt)
+
+    // generate procedure definition
+    var decl = "def " + saveRep.label + "(";
+    if (saveRep.argc > 0) {
+        decl += "arg1";
+        for (var i = 1;i < saveRep.argc;++i)
+            decl += ",arg" + String(i+1);
+    }
+    decl += "):\n";
+
+    // just in case...
+    if (code.length == 0)
+        addStmt("pass");
+
+    params.defs.push(decl + code);
+}
+
+function blockPython(saveRep,indent,params,addStmt) {
 
 }
+
+////////////////////////////////////////////////////////////////////////////////
+// END Python CODE GENERATION FUNCTIONALITY
+////////////////////////////////////////////////////////////////////////////////
+
 
 // helpers
 

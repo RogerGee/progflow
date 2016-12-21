@@ -34,7 +34,7 @@ function Terminal(parentNode) {
 
             // create new current text node context for future insertions
             curnode = document.createTextNode('');
-            span.appendChild(subspan);
+            span.appendChild(curnode);
         }
 
         this.finish = function(breakLine) {

@@ -1255,6 +1255,10 @@ function stringCpp(o) {
     return o.toCpp();
 }
 
+function stringPython(o) {
+    return o.toPython();
+}
+
 // toString prototypes for expression types
 AssignmentExpressionNode.prototype.toString = function() {
     return ooo(this,this.left,String) + " = " + ooo(this,this.right,String);
@@ -1372,7 +1376,8 @@ DivideExpressionNode.prototype.toCpp = function() {
     return ooo(this,this.left,stringCpp) + " / " + ooo(this,this.right,stringCpp);
 };
 IDivideExpressionNode.prototype.toCpp = function() {
-    return ooo(this,this.left,stringCpp) + " / " + ooo(this,this.right,stringCpp);
+    return 'int(' + ooo(this,this.left,stringCpp) + " / "
+                + ooo(this,this.right,stringCpp) + ')';
 };
 ExponentExpressionNode.prototype.toCpp = function() {
     return 'pow(' + this.left + ', ' + this.right + ')';
@@ -1409,6 +1414,89 @@ NumberNode.prototype.toCpp = function() {
     var s = String(this.value);
     if (s.match(INTEGER_REGEX))
         return s + ".0";
+    return s;
+};
+
+// Python conversion functions for expression types
+AssignmentExpressionNode.prototype.toPython = function() {
+    return ooo(this,this.left,stringPython) + " = " + ooo(this,this.right,stringPython);
+};
+LogicORExpressionNode.prototype.toPython = function() {
+    return ooo(this,this.left,stringPython) + " or " + ooo(this,this.right,stringPython);
+};
+LogicANDExpressionNode.prototype.toPython = function() {
+    return ooo(this,this.left,stringPython) + " and " + ooo(this,this.right,stringPython);
+};
+EqualExpressionNode.prototype.toPython = function() {
+    return ooo(this,this.left,stringPython) + " == " + ooo(this,this.right,stringPython);
+};
+NotEqualExpressionNode.prototype.toPython = function() {
+    return ooo(this,this.left,stringPython) + " != " + ooo(this,this.right,stringPython);
+};
+LessThanExpressionNode.prototype.toPython = function() {
+    return ooo(this,this.left,stringPython) + " < " + ooo(this,this.right,stringPython);
+};
+GreaterThanExpressionNode.prototype.toPython = function() {
+    return ooo(this,this.left,stringPython) + " > " + ooo(this,this.right,stringPython);
+};
+LessThanEqualExpressionNode.prototype.toPython = function() {
+    return ooo(this,this.left,stringPython) + " <= " + ooo(this,this.right,stringPython);
+};
+GreaterThanEqualExpressionNode.prototype.toPython = function() {
+    return ooo(this,this.left,stringPython) + " >= " + ooo(this,this.right,stringPython);
+};
+AddExpressionNode.prototype.toPython = function() {
+    return ooo(this,this.left,stringPython) + " + " + ooo(this,this.right,stringPython);
+};
+SubtractExpressionNode.prototype.toPython = function() {
+    return ooo(this,this.left,stringPython) + " - " + ooo(this,this.right,stringPython);
+};
+MultiplyExpressionNode.prototype.toPython = function() {
+    return ooo(this,this.left,stringPython) + " * " + ooo(this,this.right,stringPython);
+};
+DivideExpressionNode.prototype.toPython = function() {
+    return ooo(this,this.left,stringPython) + " / " + ooo(this,this.right,stringPython);
+};
+IDivideExpressionNode.prototype.toPython = function() {
+    return ooo(this,this.left,stringPython) + " // " + ooo(this,this.right,stringPython);
+};
+ExponentExpressionNode.prototype.toPython = function() {
+    return 'math.pow(' + this.left + ', ' + this.right + ')';
+};
+NegateExpressionNode.prototype.toPython = function() {
+    return '-' + ooo(this,this.left,stringPython);
+};
+NotExpressionNode.prototype.toPython = function() {
+    return 'not ' + ooo(this,this.left,stringPython);
+};
+FunctionCallExpressionNode.prototype.toPython = function() {
+    function unpack(a) {
+        if (a == null)
+            return [];
+        return [a.left.toPython()].concat(unpack(a.right));
+    }
+
+    var params = unpack(this.right);
+    return this.left.toPython() + '(' + params.reduce(function(a,b){
+        if (a == "")
+            return b;
+        return a + "," + b;
+    },"") + ')';
+}
+IdentifierNode.prototype.toPython = function() {
+    if (typeof this.index != 'undefined') {
+        // we implement arrays in Python using the built-in dictionary type; in
+        // this way an index should always exist (like) it does in ProgFlow; we
+        // still have to mangle the name to produce ProgFlow behavior of an
+        // array name storing a scalar
+        return this.id + '_[' + this.index + ']';
+    }
+    return this.id;
+};
+NumberNode.prototype.toPython = function() {
+    // since we are working with Python3, we don't have to worry about
+    // integer/real type distinctions
+    var s = String(this.value);
     return s;
 };
 
@@ -1848,7 +1936,7 @@ function ExpressionParser(expr,allowBoolean,allowAssignment) {
         }
 
         if (!parseTree.empty) {
-            return parseTree.root.toCpp();
+            return parseTree.root.toPython();
         }
         return '';
     }

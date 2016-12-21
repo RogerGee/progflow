@@ -76,6 +76,10 @@ html, body {
     right: 0px;
 }
 
+.div-main-panel > * {
+    margin: 2px 2px;
+}
+
 .node-panel-view {
     overflow-x: hidden;
     overflow-y: auto;

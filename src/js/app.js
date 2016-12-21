@@ -7,7 +7,7 @@ var terminal;
 var context;
 
 // constants
-const VERSION = "0.0";
+const VERSION = "1.0.0";
 const PROGNAME = "ProgFlow Simulator";
 const AGENTINFO = navigator.userAgent;
 
@@ -534,7 +534,24 @@ function buttonCppGen() {
 }
 
 function buttonPythonGen() {
+    var rep = context.getSaveRep();
+    var code = convPython(rep);
+    var dataURL = "data:text;charset=utf-8," + encodeURIComponent(code);
+    var head = document.createElement('h1');
+    var link = document.createElement('a');
+    var codeBox = document.createElement('textarea');
 
+    head.innerHTML = "Transliterated Python Source Code";
+    link.download = rep.label + ".py";
+    link.href = dataURL;
+    link.innerHTML = "Download Python Source Code";
+    codeBox.innerHTML = code;
+    codeBox.className = "save-code-box";
+    codeBox.readOnly = true;
+    var dialog = new CustomPage({
+        content:[head,codeBox,document.createElement("br"),link]
+    });
+    dialog.show();
 }
 
 function buttonExec() {
