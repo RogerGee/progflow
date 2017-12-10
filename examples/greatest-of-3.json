@@ -1,0 +1,93 @@
+{
+    "label": "greatest-of-3",
+    "logic": {},
+    "children": [
+        {
+            "label": "main",
+            "logic": {},
+            "children": [
+                {
+                    "logic": {
+                        "formatString": "Enter first number: %x"
+                    },
+                    "kind": "flowin"
+                },
+                {
+                    "logic": {
+                        "formatString": "Enter second number: %y"
+                    },
+                    "kind": "flowin"
+                },
+                {
+                    "logic": {
+                        "formatString": "Enter third number: %z"
+                    },
+                    "kind": "flowin"
+                },
+                {
+                    "truePart": {
+                        "label": "true",
+                        "logic": {},
+                        "children": [
+                            {
+                                "logic": {
+                                    "formatString": "%x",
+                                    "nl": true
+                                },
+                                "kind": "flowout"
+                            }
+                        ],
+                        "kind": "flowblock"
+                    },
+                    "falsePart": {
+                        "label": "false",
+                        "logic": {},
+                        "children": [
+                            {
+                                "truePart": {
+                                    "label": "true",
+                                    "logic": {},
+                                    "children": [
+                                        {
+                                            "logic": {
+                                                "formatString": "%y",
+                                                "nl": true
+                                            },
+                                            "kind": "flowout"
+                                        }
+                                    ],
+                                    "kind": "flowblock"
+                                },
+                                "falsePart": {
+                                    "label": "false",
+                                    "logic": {},
+                                    "children": [
+                                        {
+                                            "logic": {
+                                                "formatString": "%z",
+                                                "nl": true
+                                            },
+                                            "kind": "flowout"
+                                        }
+                                    ],
+                                    "kind": "flowblock"
+                                },
+                                "logic": {
+                                    "cond": "y > z"
+                                },
+                                "kind": "flowif"
+                            }
+                        ],
+                        "kind": "flowblock"
+                    },
+                    "logic": {
+                        "cond": "x > y and x > z"
+                    },
+                    "kind": "flowif"
+                }
+            ],
+            "kind": "flowblock"
+        }
+    ],
+    "kind": "flowblock"
+}
