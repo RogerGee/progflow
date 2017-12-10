@@ -36,6 +36,75 @@
                                     "children": [
                                         {
                                             "logic": {
+                                                "expr": "ndigits = 0"
+                                            },
+                                            "kind": "flowoperation"
+                                        },
+                                        {
+                                            "logic": {
+                                                "expr": "num = i*j"
+                                            },
+                                            "kind": "flowoperation"
+                                        },
+                                        {
+                                            "body": {
+                                                "label": "loop-body",
+                                                "logic": {},
+                                                "children": [
+                                                    {
+                                                        "logic": {
+                                                            "expr": "num = num // 10"
+                                                        },
+                                                        "kind": "flowoperation"
+                                                    },
+                                                    {
+                                                        "logic": {
+                                                            "expr": "ndigits = ndigits + 1"
+                                                        },
+                                                        "kind": "flowoperation"
+                                                    }
+                                                ],
+                                                "kind": "flowblock"
+                                            },
+                                            "logic": {
+                                                "cond": "num > 0"
+                                            },
+                                            "kind": "flowwhile"
+                                        },
+                                        {
+                                            "logic": {
+                                                "expr": "iter = 0"
+                                            },
+                                            "kind": "flowoperation"
+                                        },
+                                        {
+                                            "body": {
+                                                "label": "loop-body",
+                                                "logic": {},
+                                                "children": [
+                                                    {
+                                                        "logic": {
+                                                            "formatString": " ",
+                                                            "nl": false
+                                                        },
+                                                        "kind": "flowout"
+                                                    },
+                                                    {
+                                                        "logic": {
+                                                            "expr": "iter = iter + 1"
+                                                        },
+                                                        "kind": "flowoperation"
+                                                    }
+                                                ],
+                                                "kind": "flowblock"
+                                            },
+                                            "logic": {
+                                                "cond": "iter < (4 - ndigits)"
+                                            },
+                                            "kind": "flowwhile"
+                                        },
+                                        {
+                                            "logic": {
                                                 "formatString": "%{i*j} ",
                                                 "nl": false
                                             },
