@@ -1489,7 +1489,7 @@ IdentifierNode.prototype.toPython = function() {
         // this way an index should always exist (like) it does in ProgFlow; we
         // still have to mangle the name to produce ProgFlow behavior of an
         // array name storing a scalar
-        return this.id + '_[' + this.index + ']';
+        return this.id + '_[int(' + this.index + ')]';
     }
     return this.id;
 };
@@ -1928,7 +1928,7 @@ function ExpressionParser(expr,allowBoolean,allowAssignment) {
         return list;
     }
 
-    // convert
+    // convert to C++
     function convCpp(params) {
         // see if we need to import the math library
         if (containsNode('exponent-expr')) {
@@ -1936,7 +1936,7 @@ function ExpressionParser(expr,allowBoolean,allowAssignment) {
         }
 
         if (!parseTree.empty) {
-            return parseTree.root.toPython();
+            return parseTree.root.toCpp();
         }
         return '';
     }
